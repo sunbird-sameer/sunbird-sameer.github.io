@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <script>
+        function checkName() {
+            var name = document.getElementById('name').value.toLowerCase();
+            if (name.includes('thanmayee')) {
+                window.location.href = 'page2.html';
+            } else {
+                window.location.href = 'fop.html';
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Welcome!</h1>
+    <p>Please enter your name:</p>
+    <input type="text" id="name">
+    <button onclick="checkName()">Submit</button>
+</body>
+</html>
