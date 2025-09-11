@@ -2,34 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>P2P File Sharing via WebTorrent with Short URL</title>
+  <title>P2P File Sharing via WebTorrent</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 2em auto; padding: 1em; }
-    input[type=file] { margin-bottom: 1em; }
-    textarea { width: 100%; height: 70px; margin-top: 0.5em; }
-    button { margin-top: 1em; padding: 0.5em 1em; }
-    #status { margin-top: 1em; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 620px;
+      margin: 3em auto;
+      padding: 2em;
+      background: #f9fafb;
+      color: #333;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #222;
+      margin-bottom: 1.5rem;
+    }
+    .section {
+      background: white;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    label {
+      display: block;
+      margin-bottom: 0.7rem;
+      font-weight: 600;
+      color: #444;
+    }
+    input[type="file"],
+    textarea {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      font-size: 1rem;
+      border: 1.8px solid #ddd;
+      border-radius: 5px;
+      resize: vertical;
+      transition: border-color 0.2s ease;
+    }
+    input[type="file"]:focus,
+    textarea:focus {
+      border-color: #3b82f6;
+      outline: none;
+    }
+    textarea {
+      min-height: 80px;
+      font-family: monospace;
+    }
+    button {
+      background-color: #3b82f6;
+      color: white;
+      font-weight: 700;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 0.75rem;
+      transition: background-color 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+    button:hover:not(:disabled) {
+      background-color: #2563eb;
+    }
+    button:disabled {
+      background-color: #a5b4fc;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 1rem;
+      font-weight: 600;
+      color: #2563eb;
+      min-height: 28px;
+    }
+    .link-section textarea {
+      cursor: text;
+      user-select: all;
+      background: #f3f4f6;
+      border-color: #cbd5e1;
+      font-weight: 600;
+      color: #1e3a8a;
+    }
   </style>
 </head>
 <body>
   <h1>P2P File Sharing with WebTorrent</h1>
 
-  <div id="uploader">
+  <div class="section" id="uploader">
+    <label for="fileInput">Select a file to share:</label>
     <input type="file" id="fileInput" />
     <button id="seedBtn">Share File</button>
+
+    <div class="link-section" id="linkSection" style="display:none; margin-top: 1.5rem;">
+      <label for="magnetLink">Magnet Link (share this with others):</label>
+      <textarea id="magnetLink" readonly></textarea>
+    </div>
   </div>
 
-  <div id="linkSection" style="display:none;">
-    <p>Share this Magnet Link with others:</p>
-    <textarea id="magnetLink" readonly></textarea>
-    <button id="shortenBtn">Get Short URL</button>
-    <textarea id="shortUrl" readonly style="height: 40px;"></textarea>
-  </div>
-
-  <div id="downloader">
-    <p>Paste a Magnet Link to download a file:</p>
-    <textarea id="downloadLink"></textarea>
-    <button id="downloadBtn">Download</button>
+  <div class="section" id="downloader">
+    <label for="downloadLink">Paste a Magnet Link to download:</label>
+    <textarea id="downloadLink" placeholder="Paste magnet link here"></textarea>
+    <button id="downloadBtn">Download File</button>
     <div id="status"></div>
   </div>
 
@@ -41,59 +117,29 @@
     const seedBtn = document.getElementById('seedBtn');
     const magnetLinkTxt = document.getElementById('magnetLink');
     const linkSection = document.getElementById('linkSection');
-
-    const shortenBtn = document.getElementById('shortenBtn');
-    const shortUrlTxt = document.getElementById('shortUrl');
-
     const downloadLink = document.getElementById('downloadLink');
     const downloadBtn = document.getElementById('downloadBtn');
     const statusDiv = document.getElementById('status');
 
     seedBtn.addEventListener('click', () => {
       if (!fileInput.files.length) {
-        alert('Select a file first!');
+        alert('Please select a file to share.');
         return;
       }
       seedBtn.disabled = true;
-      const file = fileInput.files[0];
-      client.seed(file, torrent => {
+      statusDiv.textContent = 'Preparing to share your file...';
+      client.seed(fileInput.files[0], torrent => {
         magnetLinkTxt.value = torrent.magnetURI;
         linkSection.style.display = 'block';
         seedBtn.disabled = false;
-        statusDiv.textContent = 'Seeding... Keep this page open to share.';
-        // Clear previous short URL if any
-        shortUrlTxt.value = '';
+        statusDiv.textContent = 'Seeding... Keep this page open to allow downloads.';
       });
-    });
-
-    shortenBtn.addEventListener('click', async () => {
-      const longUrl = magnetLinkTxt.value.trim();
-      if (!longUrl) {
-        alert('No magnet link to shorten!');
-        return;
-      }
-      shortenBtn.disabled = true;
-      shortUrlTxt.value = 'Generating short URL...';
-
-      try {
-        const resp = await fetch('https://api.spoo.me/shorten', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: longUrl }),
-        });
-        if (!resp.ok) throw new Error('Failed to shorten URL');
-        const data = await resp.json();
-        shortUrlTxt.value = data.shortUrl || 'No short URL received';
-      } catch (err) {
-        shortUrlTxt.value = 'Error: ' + err.message;
-      }
-      shortenBtn.disabled = false;
     });
 
     downloadBtn.addEventListener('click', () => {
       const magnetURI = downloadLink.value.trim();
       if (!magnetURI) {
-        alert('Paste a magnet link to download.');
+        alert('Please paste a magnet link to download.');
         return;
       }
       statusDiv.textContent = 'Downloading...';
