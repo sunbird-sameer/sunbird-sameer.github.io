@@ -24,7 +24,8 @@
     <textarea id="magnetLink" readonly></textarea>
   </div>
 
-  <div id="downloader" style="display:none;">
+  <!-- Downloader section always visible -->
+  <div id="downloader">
     <p>Paste a Magnet Link to download a file:</p>
     <textarea id="downloadLink"></textarea>
     <button id="downloadBtn">Download</button>
@@ -39,7 +40,6 @@
     const seedBtn = document.getElementById('seedBtn');
     const magnetLinkTxt = document.getElementById('magnetLink');
     const linkSection = document.getElementById('linkSection');
-    const downloader = document.getElementById('downloader');
     const downloadLink = document.getElementById('downloadLink');
     const downloadBtn = document.getElementById('downloadBtn');
     const statusDiv = document.getElementById('status');
@@ -54,7 +54,6 @@
       client.seed(file, torrent => {
         magnetLinkTxt.value = torrent.magnetURI;
         linkSection.style.display = 'block';
-        downloader.style.display = 'block';
         seedBtn.disabled = false;
         statusDiv.textContent = 'Seeding... Keep this page open to share.';
       });
