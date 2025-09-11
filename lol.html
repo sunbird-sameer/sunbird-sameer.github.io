@@ -41,6 +41,7 @@
       border-radius: 5px;
       resize: vertical;
       transition: border-color 0.2s ease;
+      box-sizing: border-box;
     }
     input[type="file"]:focus,
     textarea:focus {
@@ -64,6 +65,7 @@
       transition: background-color 0.3s ease;
       display: block;
       width: 100%;
+      box-sizing: border-box;
     }
     button:hover:not(:disabled) {
       background-color: #2563eb;
@@ -78,6 +80,10 @@
       color: #2563eb;
       min-height: 28px;
     }
+    .link-section {
+      position: relative;
+      margin-top: 1.5rem;
+    }
     .link-section textarea {
       cursor: text;
       user-select: all;
@@ -85,6 +91,24 @@
       border-color: #cbd5e1;
       font-weight: 600;
       color: #1e3a8a;
+      padding-right: 5rem; /* space for copy button */
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #2563eb;
+      border: none;
+      color: white;
+      font-weight: 600;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .copy-btn:hover {
+      background-color: #1e40af;
     }
   </style>
 </head>
@@ -96,9 +120,10 @@
     <input type="file" id="fileInput" />
     <button id="seedBtn">Share File</button>
 
-    <div class="link-section" id="linkSection" style="display:none; margin-top: 1.5rem;">
+    <div class="link-section" id="linkSection" style="display:none;">
       <label for="magnetLink">Magnet Link (share this with others):</label>
       <textarea id="magnetLink" readonly></textarea>
+      <button class="copy-btn" id="copyBtn">Copy</button>
     </div>
   </div>
 
@@ -117,6 +142,7 @@
     const seedBtn = document.getElementById('seedBtn');
     const magnetLinkTxt = document.getElementById('magnetLink');
     const linkSection = document.getElementById('linkSection');
+    const copyBtn = document.getElementById('copyBtn');
     const downloadLink = document.getElementById('downloadLink');
     const downloadBtn = document.getElementById('downloadBtn');
     const statusDiv = document.getElementById('status');
@@ -134,6 +160,18 @@
         seedBtn.disabled = false;
         statusDiv.textContent = 'Seeding... Keep this page open to allow downloads.';
       });
+    });
+
+    copyBtn.addEventListener('click', () => {
+      magnetLinkTxt.select();
+      try {
+        document.execCommand('copy');
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      } catch (err) {
+        alert('Failed to copy. Please copy manually.');
+      }
+      window.getSelection().removeAllRanges();
     });
 
     downloadBtn.addEventListener('click', () => {
