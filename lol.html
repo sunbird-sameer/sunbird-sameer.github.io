@@ -2,17 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>P2P File Sharing via WebTorrent</title>
+  <title>P2P File Sharing with WebTorrent + URL Shortening</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 2em auto; padding: 1em; }
-    input[type=file] { margin-bottom: 1em; }
-    textarea { width: 100%; height: 70px; }
-    button { margin-top: 1em; padding: 0.5em 1em; }
+    input[type=file], textarea, button { width: 100%; margin-bottom: 1em; padding: 0.5em; box-sizing: border-box; }
+    textarea { height: 70px; resize: vertical; }
     #status { margin-top: 1em; }
   </style>
 </head>
 <body>
-  <h1>P2P File Sharing with WebTorrent</h1>
+  <h1>P2P File Sharing with WebTorrent + URL Shortening</h1>
 
   <div id="uploader">
     <input type="file" id="fileInput" />
@@ -20,13 +19,18 @@
   </div>
 
   <div id="linkSection" style="display:none;">
-    <p>Share this Magnet Link with others:</p>
+    <p>Magnet Link:</p>
     <textarea id="magnetLink" readonly></textarea>
+    <button id="shortenBtn">Generate Short URL</button>
   </div>
 
-  <!-- Downloader section always visible -->
+  <div id="shortUrlSection" style="display:none;">
+    <p>Short URL (Urlmskr):</p>
+    <textarea id="shortUrl" readonly></textarea>
+  </div>
+
   <div id="downloader">
-    <p>Paste a Magnet Link to download a file:</p>
+    <p>Paste a Magnet Link or Short URL to download a file:</p>
     <textarea id="downloadLink"></textarea>
     <button id="downloadBtn">Download</button>
     <div id="status"></div>
@@ -40,6 +44,10 @@
     const seedBtn = document.getElementById('seedBtn');
     const magnetLinkTxt = document.getElementById('magnetLink');
     const linkSection = document.getElementById('linkSection');
+    const shortenBtn = document.getElementById('shortenBtn');
+    const shortUrlSection = document.getElementById('shortUrlSection');
+    const shortUrlTxt = document.getElementById('shortUrl');
+
     const downloadLink = document.getElementById('downloadLink');
     const downloadBtn = document.getElementById('downloadBtn');
     const statusDiv = document.getElementById('status');
@@ -54,19 +62,57 @@
       client.seed(file, torrent => {
         magnetLinkTxt.value = torrent.magnetURI;
         linkSection.style.display = 'block';
+        shortUrlSection.style.display = 'none';
+        shortUrlTxt.value = '';
         seedBtn.disabled = false;
         statusDiv.textContent = 'Seeding... Keep this page open to share.';
       });
     });
 
-    downloadBtn.addEventListener('click', () => {
-      const magnetURI = downloadLink.value.trim();
-      if (!magnetURI) {
-        alert('Paste a magnet link to download.');
+    shortenBtn.addEventListener('click', async () => {
+      const magnet = magnetLinkTxt.value.trim();
+      if (!magnet) {
+        alert('No magnet link to shorten!');
         return;
       }
+      shortenBtn.disabled = true;
+      shortUrlSection.style.display = 'none';
+      shortUrlTxt.value = 'Generating...';
+      try {
+        const shortUrl = await shortenUrl(magnet);
+        shortUrlTxt.value = shortUrl;
+        shortUrlSection.style.display = 'block';
+      } catch (e) {
+        alert('Failed to generate short URL');
+        shortUrlTxt.value = '';
+      }
+      shortenBtn.disabled = false;
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      let inputLink = downloadLink.value.trim();
+      if (!inputLink) {
+        alert('Paste a magnet link or short URL to download.');
+        return;
+      }
+
+      statusDiv.textContent = 'Processing...';
+
+      // If the link is a short URL (urlmskr), expand it first
+      if (inputLink.startsWith('https://urlmskr.com/')) {
+        try {
+          inputLink = await expandShortUrl(inputLink);
+          if (!inputLink.startsWith('magnet:?')) {
+            throw new Error('Expanded URL is not a magnet link');
+          }
+        } catch (e) {
+          statusDiv.textContent = 'Failed to expand short URL: ' + e.message;
+          return;
+        }
+      }
+
       statusDiv.textContent = 'Downloading...';
-      client.add(magnetURI, torrent => {
+      client.add(inputLink, torrent => {
         torrent.files.forEach(file => {
           file.getBlobURL((err, url) => {
             if (err) {
@@ -86,6 +132,35 @@
         });
       });
     });
+
+    async function shortenUrl(longUrl) {
+      const apiUrl = 'https://urlmskr.com/api';
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: longUrl })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to shorten URL');
+      }
+      const data = await response.json();
+      return data.shortened;
+    }
+
+    async function expandShortUrl(shortUrl) {
+      // Use fetch with redirect:true to get the actual long URL from short URL
+      const response = await fetch(shortUrl, {
+        method: 'HEAD',
+        redirect: 'follow'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch short URL');
+      }
+      // The final redirected URL
+      return response.url;
+    }
   </script>
 </body>
 </html>
