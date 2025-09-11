@@ -1,1 +1,92 @@
-<h1>श्रीराधा</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>P2P File Sharing via WebTorrent</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 2em auto; padding: 1em; }
+    input[type=file] { margin-bottom: 1em; }
+    textarea { width: 100%; height: 70px; }
+    button { margin-top: 1em; padding: 0.5em 1em; }
+    #status { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>P2P File Sharing with WebTorrent</h1>
+
+  <div id="uploader">
+    <input type="file" id="fileInput" />
+    <button id="seedBtn">Share File</button>
+  </div>
+
+  <div id="linkSection" style="display:none;">
+    <p>Share this Magnet Link with others:</p>
+    <textarea id="magnetLink" readonly></textarea>
+  </div>
+
+  <div id="downloader" style="display:none;">
+    <p>Paste a Magnet Link to download a file:</p>
+    <textarea id="downloadLink"></textarea>
+    <button id="downloadBtn">Download</button>
+    <div id="status"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/webtorrent/webtorrent.min.js"></script>
+  <script>
+    const client = new WebTorrent();
+
+    const fileInput = document.getElementById('fileInput');
+    const seedBtn = document.getElementById('seedBtn');
+    const magnetLinkTxt = document.getElementById('magnetLink');
+    const linkSection = document.getElementById('linkSection');
+    const downloader = document.getElementById('downloader');
+    const downloadLink = document.getElementById('downloadLink');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusDiv = document.getElementById('status');
+
+    seedBtn.addEventListener('click', () => {
+      if (!fileInput.files.length) {
+        alert('Select a file first!');
+        return;
+      }
+      seedBtn.disabled = true;
+      const file = fileInput.files[0];
+      client.seed(file, torrent => {
+        magnetLinkTxt.value = torrent.magnetURI;
+        linkSection.style.display = 'block';
+        downloader.style.display = 'block';
+        seedBtn.disabled = false;
+        statusDiv.textContent = 'Seeding... Keep this page open to share.';
+      });
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const magnetURI = downloadLink.value.trim();
+      if (!magnetURI) {
+        alert('Paste a magnet link to download.');
+        return;
+      }
+      statusDiv.textContent = 'Downloading...';
+      client.add(magnetURI, torrent => {
+        torrent.files.forEach(file => {
+          file.getBlobURL((err, url) => {
+            if (err) {
+              statusDiv.textContent = 'Error retrieving file.';
+              return;
+            }
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            a.textContent = `Click here to download "${file.name}"`;
+            statusDiv.innerHTML = '';
+            statusDiv.appendChild(a);
+          });
+        });
+        torrent.on('done', () => {
+          statusDiv.textContent += ' Download complete.';
+        });
+      });
+    });
+  </script>
+</body>
+</html>
