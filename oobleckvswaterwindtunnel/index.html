@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oobleck vs Water</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<title>Non-Newtonian vs Newtonian Fluid</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -12,202 +11,127 @@
   --bg:      #0d0e12;
   --surface: #13151b;
   --border:  #1c1f28;
-  --a:       #e8ff47;   /* oobleck — electric lime */
-  --b:       #47d9ff;   /* water   — cyan          */
   --text:    #dde3f0;
   --dim:     #555d72;
-  --radius:  10px;
+  --accent:  #4d9fff;
 }
 
-html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
 
-/* ── Layout shells ───────────────────────────────────────────── */
 #app   { display: flex; flex-direction: column; height: 100dvh; }
 #stage { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 
-/* ── Header ──────────────────────────────────────────────────── */
+/* Header */
 header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 20px; border-bottom: 1px solid var(--border);
-  background: var(--surface); flex-shrink: 0; gap: 16px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0; gap: 12px;
 }
-
-.wordmark {
-  display: flex; align-items: center; gap: 8px;
-  font-size: .75rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-}
-.pip { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.pip-a { background: var(--a); box-shadow: 0 0 8px var(--a); }
-.pip-b { background: var(--b); box-shadow: 0 0 8px var(--b); }
-.wordmark-sep { color: var(--dim); font-weight: 400; }
-
-.hdr-right { display: flex; align-items: center; gap: 16px; }
-.pair-counter {
-  font-family: 'DM Mono', monospace; font-size: .75rem;
-  color: var(--dim); letter-spacing: .06em; white-space: nowrap;
-}
+.title { font-size: .85rem; font-weight: 600; color: var(--text); }
+.pair-counter { font-size: .8rem; color: var(--dim); white-space: nowrap; }
 .pair-counter strong { color: var(--text); }
 
-/* ── Panels ──────────────────────────────────────────────────── */
-.panel {
-  flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;
+/* Set tabs */
+#set-tabs {
+  display: flex; gap: 6px; align-items: center;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
 }
-.panel + .panel { border-left: 1px solid var(--border); }
+#set-tabs::-webkit-scrollbar { display: none; }
+.set-tab {
+  font-size: .78rem; font-weight: 500;
+  padding: 5px 14px; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--dim);
+  cursor: pointer; white-space: nowrap; transition: all .12s;
+  touch-action: manipulation; min-height: 32px;
+}
+.set-tab:hover { border-color: var(--accent); color: var(--accent); }
+.set-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* Panels */
+.panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.panel + .panel { border-left: 1px solid var(--border); }
 .panel-hdr {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 14px; background: var(--surface);
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.panel-label {
-  font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
-  display: flex; align-items: center; gap: 5px;
-}
-.panel-a .panel-label { color: var(--a); }
-.panel-b .panel-label { color: var(--b); }
-.panel-fname {
-  font-family: 'DM Mono', monospace; font-size: .62rem; color: var(--dim);
-  max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.panel-label { font-size: .75rem; font-weight: 600; color: var(--text); }
+.panel-fname { font-size: .7rem; color: var(--dim); max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* image area */
-.img-wrap {
-  flex: 1; position: relative; overflow: hidden; background: var(--bg);
-  display: grid; place-items: center;
-}
-.img-wrap img {
-  max-width: 100%; max-height: 100%; object-fit: contain; display: block;
-  opacity: 0; transition: opacity .28s ease; will-change: opacity;
-}
+.img-wrap { flex: 1; position: relative; overflow: hidden; display: grid; place-items: center; background: var(--bg); }
+.img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; opacity: 0; transition: opacity .2s ease; }
 .img-wrap img.show { opacity: 1; }
 
-/* skeleton shimmer while loading */
-.skeleton {
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, var(--surface) 25%, #1a1d26 50%, var(--surface) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  transition: opacity .2s;
-}
+.skeleton { position: absolute; inset: 0; background: linear-gradient(90deg, var(--surface) 25%, #1a1d26 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; transition: opacity .15s; }
 .skeleton.done { opacity: 0; pointer-events: none; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-/* ── Thumbnail strip ─────────────────────────────────────────── */
+/* Thumbnails */
 #thumbs {
-  display: flex; gap: 5px; align-items: center;
-  padding: 8px 16px; border-top: 1px solid var(--border);
-  background: var(--bg); overflow-x: auto; flex-shrink: 0;
+  display: flex; gap: 4px; align-items: center;
+  padding: 6px 14px; border-top: 1px solid var(--border);
+  background: var(--surface); overflow-x: auto; flex-shrink: 0;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 #thumbs::-webkit-scrollbar { display: none; }
-
 .thumb {
-  flex-shrink: 0; width: 44px; height: 44px; border-radius: 6px;
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 4px;
   overflow: hidden; cursor: pointer; position: relative;
-  border: 2px solid transparent;
-  transition: transform .15s, border-color .15s;
+  border: 2px solid transparent; transition: border-color .12s;
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb:hover { transform: scale(1.1); }
-.thumb.active {
-  border-color: var(--a);
-  box-shadow: 0 0 0 2px rgba(232,255,71,.25);
-}
-.thumb-num {
-  position: absolute; bottom: 2px; right: 3px;
-  font-family: 'DM Mono', monospace; font-size: .55rem;
-  color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000;
-  line-height: 1;
-}
+.thumb.active { border-color: var(--accent); }
+.thumb-num { position: absolute; bottom: 1px; right: 2px; font-size: .5rem; color: rgba(255,255,255,.9); text-shadow: 0 1px 2px #000; line-height: 1; }
 
-/* ── Progress bar ─────────────────────────────────────────────── */
+/* Progress */
 #prog-track { height: 2px; background: var(--border); flex-shrink: 0; }
-#prog-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--a), var(--b));
-  transition: width .3s ease; width: 0%;
-}
+#prog-fill { height: 100%; background: var(--accent); transition: width .25s ease; width: 0%; }
 
-/* ── Nav ─────────────────────────────────────────────────────── */
+/* Nav */
 #nav {
   display: flex; align-items: center; justify-content: center;
-  gap: 12px; padding: 12px 20px;
-  border-top: 1px solid var(--border);
+  gap: 10px; padding: 10px 16px; border-top: 1px solid var(--border);
   background: var(--surface); flex-shrink: 0;
 }
-
 .btn {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
-  padding: 11px 28px; border-radius: 8px; border: none;
-  cursor: pointer; transition: opacity .15s, transform .1s;
-  /* bigger tap target on mobile */
-  min-height: 44px; touch-action: manipulation;
+  font-size: .78rem; font-weight: 500;
+  padding: 8px 22px; border-radius: 4px; border: 1px solid var(--border);
+  cursor: pointer; transition: background .12s; background: var(--surface);
+  color: var(--text); min-height: 44px; touch-action: manipulation;
 }
-.btn:disabled { opacity: .2; cursor: default; pointer-events: none; }
-.btn:active   { transform: scale(.95); }
+.btn:disabled { opacity: .35; pointer-events: none; }
+.btn:active { opacity: .7; }
+.btn-prev:hover { background: var(--bg); }
+.btn-next { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-next:hover { opacity: .88; }
+.nav-hint { font-size: .72rem; color: var(--dim); }
 
-.btn-prev { background: var(--border); color: var(--text); }
-.btn-prev:hover { background: #272b38; }
-.btn-next { background: var(--a); color: #000; }
-.btn-next:hover { opacity: .85; }
-
-.nav-hint {
-  font-family: 'DM Mono', monospace; font-size: .68rem; color: var(--dim);
-  display: flex; gap: 10px; align-items: center;
-}
-.key {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 2px 7px; background: var(--border); border-radius: 4px;
-  color: var(--text); font-size: .68rem;
-}
-
-/* ── Error / loading overlay ─────────────────────────────────── */
-#overlay {
-  position: fixed; inset: 0; z-index: 99;
-  background: var(--bg);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 14px; text-align: center; padding: 32px;
-}
+/* Overlay */
+#overlay { position: fixed; inset: 0; z-index: 99; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 32px; }
 #overlay.hidden { display: none; }
-
-.ov-title { font-size: 1.3rem; font-weight: 800; letter-spacing: .04em; }
-.ov-body  { font-family: 'DM Mono', monospace; font-size: .82rem; color: var(--dim); max-width: 380px; line-height: 1.8; }
-.ov-code  { font-family: 'DM Mono', monospace; font-size: .78rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 20px; color: var(--a); text-align: left; }
-.spinner  { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--a); border-radius: 50%; animation: spin .7s linear infinite; }
+.ov-title { font-size: 1rem; font-weight: 600; }
+.ov-body  { font-size: .8rem; color: var(--dim); max-width: 320px; line-height: 1.7; }
+.spinner  { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Mobile: portrait — stack panels vertically ───────────────── */
+/* Mobile portrait */
 @media (max-width: 600px) {
-  header { padding: 10px 14px; }
-  .wordmark { font-size: .68rem; gap: 6px; }
-
-  /* vertical stack */
   #stage { flex-direction: column; }
   .panel + .panel { border-left: none; border-top: 1px solid var(--border); }
-
-  /* tighten panel headers */
-  .panel-hdr { padding: 6px 12px; }
-  .panel-fname { display: none; } /* no room — filename shown in header */
-
-  /* thumbnails: smaller, more visible */
-  #thumbs { padding: 6px 12px; gap: 4px; }
-  .thumb  { width: 38px; height: 38px; }
-
-  /* nav buttons fill width */
-  #nav { padding: 10px 14px; gap: 10px; }
-  .btn { flex: 1; padding: 13px 10px; font-size: .7rem; }
-  .nav-hint { display: none; } /* keyboard hint irrelevant on mobile */
+  .panel-fname { display: none; }
+  #thumbs { padding: 5px 12px; }
+  .thumb { width: 34px; height: 34px; }
+  #nav { padding: 8px 12px; gap: 8px; }
+  .btn { flex: 1; padding: 10px 8px; }
+  .nav-hint { display: none; }
 }
 
-/* ── Mobile: landscape — side by side but compact ─────────────── */
+/* Mobile landscape */
 @media (max-height: 500px) {
-  header { padding: 7px 16px; }
   .panel-hdr { padding: 4px 12px; }
-  #thumbs { display: none; } /* hide thumbs in landscape to save space */
-  #nav { padding: 8px 16px; }
-  .btn { padding: 8px 20px; }
+  #thumbs { display: none; }
+  #nav { padding: 6px 14px; }
   .nav-hint { display: none; }
 }
 </style>
@@ -216,39 +140,33 @@ header {
 <div id="app">
 
   <header>
-    <div class="wordmark">
-      <div class="pip pip-a"></div>
-      Oobleck
-      <span class="wordmark-sep">vs</span>
-      Water
-      <div class="pip pip-b"></div>
-    </div>
-    <div class="hdr-right">
-      <div class="pair-counter">Pair <strong id="idx">—</strong> / <strong id="tot">—</strong></div>
-    </div>
+    <div class="title">Fluid Comparison</div>
+    <div class="pair-counter">Pair <strong id="idx">—</strong> / <strong id="tot">—</strong></div>
   </header>
+
+  <div id="set-tabs"></div>
 
   <div id="prog-track"><div id="prog-fill"></div></div>
 
   <div id="stage">
-    <div class="panel panel-a" id="panel-a">
+    <div class="panel panel-a">
       <div class="panel-hdr">
-        <div class="panel-label"><div class="pip pip-a"></div>Oobleck</div>
+        <div class="panel-label">Non-Newtonian Fluid (Oobleck)</div>
         <div class="panel-fname" id="fn-a">—</div>
       </div>
-      <div class="img-wrap" id="wrap-a">
+      <div class="img-wrap">
         <div class="skeleton" id="sk-a"></div>
-        <img id="img-a" alt="oobleck">
+        <img id="img-a" alt="non-newtonian fluid">
       </div>
     </div>
-    <div class="panel panel-b" id="panel-b">
+    <div class="panel panel-b">
       <div class="panel-hdr">
-        <div class="panel-label"><div class="pip pip-b"></div>Water</div>
+        <div class="panel-label">Newtonian Fluid (Water)</div>
         <div class="panel-fname" id="fn-b">—</div>
       </div>
-      <div class="img-wrap" id="wrap-b">
+      <div class="img-wrap">
         <div class="skeleton" id="sk-b"></div>
-        <img id="img-b" alt="water">
+        <img id="img-b" alt="newtonian fluid">
       </div>
     </div>
   </div>
@@ -257,80 +175,91 @@ header {
 
   <div id="nav">
     <button class="btn btn-prev" id="btn-prev" disabled>← Prev</button>
-    <div class="nav-hint"><span class="key">←</span><span class="key">→</span> to navigate</div>
+    <div class="nav-hint">← → to navigate</div>
     <button class="btn btn-next" id="btn-next" disabled>Next →</button>
   </div>
 </div>
 
-<!-- Overlay for loading / errors -->
 <div id="overlay">
-  <div class="spinner" id="ov-spinner"></div>
-  <div class="ov-title" id="ov-title">Loading manifest…</div>
-  <div class="ov-body"  id="ov-body"></div>
-  <div class="ov-code"  id="ov-code" style="display:none"></div>
+  <div class="spinner"></div>
+  <div class="ov-title">Loading…</div>
+  <div class="ov-body"></div>
 </div>
 
 <!-- MANIFEST_INJECT -->
 <script>const MANIFEST = {
-  "oobleck": [
-    "./oobleck/DSCN7843.JPG","./oobleck/DSCN7844.JPG","./oobleck/DSCN7845.JPG",
-    "./oobleck/DSCN7846.JPG","./oobleck/DSCN7847.JPG","./oobleck/DSCN7848.JPG",
-    "./oobleck/DSCN7849.JPG","./oobleck/DSCN7850.JPG","./oobleck/DSCN7851.JPG",
-    "./oobleck/DSCN7852.JPG","./oobleck/DSCN7853.JPG","./oobleck/DSCN7854.JPG"
-  ],
-  "water": [
-    "./water/DSCN7501.JPG","./water/DSCN7502.JPG","./water/DSCN7503.JPG",
-    "./water/DSCN7504.JPG","./water/DSCN7505.JPG","./water/DSCN7506.JPG",
-    "./water/DSCN7507.JPG","./water/DSCN7508.JPG","./water/DSCN7509.JPG",
-    "./water/DSCN7510.JPG","./water/DSCN7511.JPG","./water/DSCN7512.JPG"
-  ]
+  "set1": {
+    "oobleck": [
+      "./set1/oobleck/DSCN7843.JPG","./set1/oobleck/DSCN7844.JPG","./set1/oobleck/DSCN7845.JPG",
+      "./set1/oobleck/DSCN7846.JPG","./set1/oobleck/DSCN7847.JPG","./set1/oobleck/DSCN7848.JPG",
+      "./set1/oobleck/DSCN7849.JPG","./set1/oobleck/DSCN7850.JPG","./set1/oobleck/DSCN7851.JPG",
+      "./set1/oobleck/DSCN7852.JPG","./set1/oobleck/DSCN7853.JPG","./set1/oobleck/DSCN7854.JPG"
+    ],
+    "water": [
+      "./set1/water/DSCN7501.JPG","./set1/water/DSCN7502.JPG","./set1/water/DSCN7503.JPG",
+      "./set1/water/DSCN7504.JPG","./set1/water/DSCN7505.JPG","./set1/water/DSCN7506.JPG",
+      "./set1/water/DSCN7507.JPG","./set1/water/DSCN7508.JPG","./set1/water/DSCN7509.JPG",
+      "./set1/water/DSCN7510.JPG","./set1/water/DSCN7511.JPG","./set1/water/DSCN7512.JPG"
+    ]
+  },
+  "set2": {
+    "oobleck": [
+      "./set2/oobleck/DSCN7965.JPG","./set2/oobleck/DSCN7966.JPG",
+      "./set2/oobleck/DSCN7967.JPG","./set2/oobleck/DSCN7968.JPG"
+    ],
+    "water": [
+      "./set2/water/DSCN8238.JPG","./set2/water/DSCN8239.JPG",
+      "./set2/water/DSCN8240.JPG","./set2/water/DSCN8241.JPG"
+    ]
+  }
 };</script>
+
 <script>
-let pairs = [], current = 0;
+let pairs = [], current = 0, activeSet = null;
 
-// ── Init from inline manifest ─────────────────────────────────────────────────
 function init() {
-  if (typeof MANIFEST === 'undefined') {
-    showError(
-      'Manifest not embedded',
-      'Run the generator script to inject the file list into this HTML:',
-      'python3 generate_manifest.py'
-    );
-    return;
-  }
+  const sets = Object.keys(MANIFEST);
+  if (!sets.length) return;
 
-  const a = MANIFEST['oobleck'] || [];
-  const b = MANIFEST['water']   || [];
+  const tabBar = document.getElementById('set-tabs');
+  sets.forEach(key => {
+    const btn = document.createElement('button');
+    btn.className = 'set-tab';
+    btn.textContent = key.replace(/^set(\d+)$/i, 'Set $1');
+    btn.dataset.set = key;
+    btn.addEventListener('click', () => loadSet(key));
+    tabBar.appendChild(btn);
+  });
 
-  if (!a.length || !b.length) {
-    showError('No images found', 'Make sure ./oobleck/ and ./water/ folders contain images and re-run generate_manifest.py.');
-    return;
-  }
+  document.getElementById('overlay').classList.add('hidden');
+  loadSet(sets[0]);
+}
 
+function loadSet(key) {
+  activeSet = key;
+  document.querySelectorAll('.set-tab').forEach(t => t.classList.toggle('active', t.dataset.set === key));
+
+  const data = MANIFEST[key];
+  const a = data.oobleck || [];
+  const b = data.water   || [];
   const n = Math.min(a.length, b.length);
-  pairs   = Array.from({ length: n }, (_, i) => ({ a: a[i], b: b[i] }));
+  pairs = Array.from({ length: n }, (_, i) => ({ a: a[i], b: b[i] }));
 
   buildThumbs();
-  hideOverlay();
   goto(0);
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
 function goto(i) {
   current = i;
-  const pair = pairs[i];
-
-  setImg('a', pair.a);
-  setImg('b', pair.b);
+  setImg('a', pairs[i].a);
+  setImg('b', pairs[i].b);
 
   document.getElementById('idx').textContent = i + 1;
   document.getElementById('tot').textContent = pairs.length;
-  document.getElementById('prog-fill').style.width = `${((i+1)/pairs.length)*100}%`;
-
+  document.getElementById('prog-fill').style.width = `${((i + 1) / pairs.length) * 100}%`;
   document.getElementById('btn-prev').disabled = i === 0;
   document.getElementById('btn-next').disabled = i === pairs.length - 1;
 
-  // active thumb
   document.querySelectorAll('.thumb').forEach((t, idx) => t.classList.toggle('active', idx === i));
   document.querySelectorAll('.thumb')[i]?.scrollIntoView({ inline: 'center', behavior: 'smooth' });
 }
@@ -338,77 +267,48 @@ function goto(i) {
 function setImg(side, src) {
   const img = document.getElementById(`img-${side}`);
   const sk  = document.getElementById(`sk-${side}`);
-  const fn  = document.getElementById(`fn-${side}`);
-
   img.classList.remove('show');
   sk.classList.remove('done');
-
-  img.onload = () => { sk.classList.add('done'); img.classList.add('show'); };
+  img.onload  = () => { sk.classList.add('done'); img.classList.add('show'); };
   img.onerror = () => { sk.classList.add('done'); };
   img.src = src;
-
-  fn.textContent = src.split('/').pop();
+  document.getElementById(`fn-${side}`).textContent = src.split('/').pop();
 }
 
-// ── Buttons / keyboard ────────────────────────────────────────────────────────
-document.getElementById('btn-prev').addEventListener('click', () => { if (current > 0) goto(current - 1); });
-document.getElementById('btn-next').addEventListener('click', () => { if (current < pairs.length - 1) goto(current + 1); });
-
-// ── Swipe gestures ────────────────────────────────────────────────────────────
-let touchStartX = 0, touchStartY = 0;
-document.getElementById('stage').addEventListener('touchstart', e => {
-  touchStartX = e.touches[0].clientX;
-  touchStartY = e.touches[0].clientY;
-}, { passive: true });
-document.getElementById('stage').addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - touchStartX;
-  const dy = e.changedTouches[0].clientY - touchStartY;
-  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
-  if (dx < 0 && current < pairs.length - 1) goto(current + 1);
-  if (dx > 0 && current > 0)                goto(current - 1);
-}, { passive: true });
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft'  && current > 0)                goto(current - 1);
-  if (e.key === 'ArrowRight' && current < pairs.length - 1) goto(current + 1);
-});
-
-// ── Thumbnails ────────────────────────────────────────────────────────────────
 function buildThumbs() {
   const bar = document.getElementById('thumbs');
   bar.innerHTML = '';
   pairs.forEach((p, i) => {
-    const t   = document.createElement('div');
+    const t = document.createElement('div');
     t.className = 'thumb';
-
     const img = document.createElement('img');
-    img.src = p.a;
-    img.alt = `pair ${i+1}`;
-    img.loading = 'lazy';
-
+    img.src = p.a; img.alt = `pair ${i+1}`; img.loading = 'lazy';
     const num = document.createElement('div');
-    num.className = 'thumb-num';
-    num.textContent = i + 1;
-
+    num.className = 'thumb-num'; num.textContent = i + 1;
     t.append(img, num);
     t.addEventListener('click', () => goto(i));
     bar.appendChild(t);
   });
 }
 
-// ── Overlay helpers ───────────────────────────────────────────────────────────
-function showError(title, body, code) {
-  document.getElementById('ov-spinner').style.display = 'none';
-  document.getElementById('ov-title').textContent = title;
-  document.getElementById('ov-body').textContent  = body || '';
-  const codeEl = document.getElementById('ov-code');
-  if (code) { codeEl.textContent = code; codeEl.style.display = 'block'; }
-}
-function hideOverlay() {
-  document.getElementById('overlay').classList.add('hidden');
-}
+document.getElementById('btn-prev').addEventListener('click', () => { if (current > 0) goto(current - 1); });
+document.getElementById('btn-next').addEventListener('click', () => { if (current < pairs.length - 1) goto(current + 1); });
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft'  && current > 0)                goto(current - 1);
+  if (e.key === 'ArrowRight' && current < pairs.length - 1) goto(current + 1);
+});
+
+let tx = 0, ty = 0;
+document.getElementById('stage').addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+document.getElementById('stage').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+  if (dx < 0 && current < pairs.length - 1) goto(current + 1);
+  if (dx > 0 && current > 0)                goto(current - 1);
+}, { passive: true });
+
 init();
 </script>
 </body>
