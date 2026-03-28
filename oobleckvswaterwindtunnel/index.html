@@ -273,16 +273,16 @@ header {
 <!-- MANIFEST_INJECT -->
 <script>const MANIFEST = {
   "oobleck": [
-    "oobleck/DSCN7843.JPG","oobleck/DSCN7844.JPG","oobleck/DSCN7845.JPG",
-    "oobleck/DSCN7846.JPG","oobleck/DSCN7847.JPG","oobleck/DSCN7848.JPG",
-    "oobleck/DSCN7849.JPG","oobleck/DSCN7850.JPG","oobleck/DSCN7851.JPG",
-    "oobleck/DSCN7852.JPG","oobleck/DSCN7853.JPG","oobleck/DSCN7854.JPG"
+    "./oobleck/DSCN7843.JPG","./oobleck/DSCN7844.JPG","./oobleck/DSCN7845.JPG",
+    "./oobleck/DSCN7846.JPG","./oobleck/DSCN7847.JPG","./oobleck/DSCN7848.JPG",
+    "./oobleck/DSCN7849.JPG","./oobleck/DSCN7850.JPG","./oobleck/DSCN7851.JPG",
+    "./oobleck/DSCN7852.JPG","./oobleck/DSCN7853.JPG","./oobleck/DSCN7854.JPG"
   ],
   "water": [
-    "water/DSCN7501.JPG","water/DSCN7502.JPG","water/DSCN7503.JPG",
-    "water/DSCN7504.JPG","water/DSCN7505.JPG","water/DSCN7506.JPG",
-    "water/DSCN7507.JPG","water/DSCN7508.JPG","water/DSCN7509.JPG",
-    "water/DSCN7510.JPG","water/DSCN7511.JPG","water/DSCN7512.JPG"
+    "./water/DSCN7501.JPG","./water/DSCN7502.JPG","./water/DSCN7503.JPG",
+    "./water/DSCN7504.JPG","./water/DSCN7505.JPG","./water/DSCN7506.JPG",
+    "./water/DSCN7507.JPG","./water/DSCN7508.JPG","./water/DSCN7509.JPG",
+    "./water/DSCN7510.JPG","./water/DSCN7511.JPG","./water/DSCN7512.JPG"
   ]
 };</script>
 <script>
@@ -303,7 +303,7 @@ function init() {
   const b = MANIFEST['water']   || [];
 
   if (!a.length || !b.length) {
-    showError('No images found', 'Make sure oobleck/ and water/ folders contain images and re-run generate_manifest.py.');
+    showError('No images found', 'Make sure ./oobleck/ and ./water/ folders contain images and re-run generate_manifest.py.');
     return;
   }
 
