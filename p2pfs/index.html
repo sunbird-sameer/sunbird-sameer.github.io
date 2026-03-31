@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P File & Folder Drop</title>
+    
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- PeerJS & JSZip -->
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    
+    <!-- Main Script -->
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="app-background">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="container">
+        <header>
+            <i data-lucide="share-2" class="logo-icon"></i>
+            <h1>Nexus Drop</h1>
+            <p>Peer-to-Peer Encrypted File & Folder Transfer</p>
+        </header>
+
+        <div class="glass-panel connection-panel">
+            <div class="panel-section my-id-section">
+                <span>Your Secure ID</span>
+                <div class="id-display-wrapper">
+                    <code id="my-id">Generating...</code>
+                    <button id="copy-id-btn" class="icon-btn" title="Copy ID">
+                        <i data-lucide="copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="panel-section connect-section">
+                <span>Connect to Peer</span>
+                <div class="input-wrapper">
+                    <input type="text" id="target-id" placeholder="Enter Peer ID" autocomplete="off" spellcheck="false" />
+                    <button id="connect-btn" class="primary-btn">
+                        <i data-lucide="link"></i> Connect
+                    </button>
+                </div>
+            </div>
+            
+            <div id="connection-status" class="status-badge disconnected">
+                <div class="status-indicator"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="glass-panel drop-zone-panel disabled" id="drop-zone">
+            <div class="drop-content">
+                <i data-lucide="upload-cloud" class="upload-icon"></i>
+                <h2>Drag & Drop Here</h2>
+                <p>Or select files/folders from your device</p>
+                
+                <div class="action-buttons">
+                    <label class="secondary-btn file-upload-label">
+                        <i data-lucide="file"></i> Choose File
+                        <input type="file" id="file-input" multiple />
+                    </label>
+                    <label class="secondary-btn folder-upload-label">
+                        <i data-lucide="folder"></i> Choose Folder
+                        <input type="file" id="folder-input" webkitdirectory directory multiple />
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="transfers-container" id="transfers-container">
+            <!-- Transfer items will be injected here dynamically -->
+        </div>
+
+    </main>
+</body>
+</html>
