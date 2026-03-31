@@ -527,3 +527,67 @@ input[type="file"] {
     gap: 1rem;
     width: 100%;
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 500px) {
+    body {
+        padding: 1rem;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .input-wrapper {
+        flex-direction: column;
+    }
+
+    .id-display-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #my-id {
+        text-align: center;
+        padding-bottom: 0.5rem;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .primary-btn, .secondary-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .transfer-header, .batch-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .transfer-icon {
+        align-self: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .transfer-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+        align-items: flex-start;
+    }
+
+    .sub-file-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .sub-file-actions {
+        width: 100%;
+        margin-top: 0.5rem;
+        display: flex;
+        justify-content: flex-end;
+    }
+}
