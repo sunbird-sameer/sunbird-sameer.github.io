@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electron Cloud Viewer — Orbital Probability Densities</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d12;
+    --bg-deep: #060709;
+    --panel: #11151c;
+    --panel-soft: #151a22;
+    --border: #232b36;
+    --text: #e7ecf1;
+    --text-dim: #8b96a3;
+    --text-faint: #4d5663;
+    --cyan: #5ec8ff;
+    --red: #ff5d6c;
+    --amber: #ffb454;
+    --violet: #9b8cff;
+    --radius: 10px;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; height:100%; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow: hidden;
+  }
+
+  #app{
+    display:flex;
+    height:100vh;
+    width:100vw;
+  }
+
+  /* ---------- viewport ---------- */
+  #viewport{
+    position:relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    background:
+      radial-gradient(circle at 50% 42%, #0d1219 0%, var(--bg-deep) 70%);
+    overflow:hidden;
+  }
+  #scene{ position:absolute; inset:0; display:block; touch-action:none; cursor: grab; }
+  #scene:active{ cursor: grabbing; }
+
+  .frame-corner{
+    position:absolute;
+    width:22px; height:22px;
+    border: 1.5px solid var(--text-faint);
+    opacity:.55;
+    pointer-events:none;
+  }
+  .frame-corner.tl{ top:18px; left:18px; border-right:none; border-bottom:none; }
+  .frame-corner.tr{ top:18px; right:18px; border-left:none; border-bottom:none; }
+  .frame-corner.bl{ bottom:18px; left:18px; border-right:none; border-top:none; }
+  .frame-corner.br{ bottom:18px; right:18px; border-left:none; border-top:none; }
+
+  #hint{
+    position:absolute; left:24px; bottom:24px;
+    font-family: var(--font-mono);
+    font-size:11px;
+    letter-spacing:.04em;
+    color: var(--text-faint);
+    pointer-events:none;
+  }
+
+  #viewLabel{
+    position:absolute; top:24px; left:24px;
+    font-family: var(--font-mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    color: var(--text-faint);
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+
+  #resetView{
+    position:absolute; bottom:22px; right:22px;
+    background: rgba(255,255,255,.04);
+    border:1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size:11px;
+    letter-spacing:.05em;
+    padding:7px 12px;
+    border-radius: 999px;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  #resetView:hover{ color: var(--text); border-color: var(--text-faint); background: rgba(255,255,255,.07); }
+
+  /* ---------- side panel ---------- */
+  #panel{
+    flex: 0 0 380px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 26px 24px 32px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+  #panel::-webkit-scrollbar{ width:8px; }
+  #panel::-webkit-scrollbar-thumb{ background: var(--border); border-radius:4px; }
+
+  .eyebrow{
+    font-family: var(--font-mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color: var(--text-faint);
+  }
+
+  header h1{
+    font-family: var(--font-display);
+    font-size:19px;
+    font-weight:600;
+    margin: 4px 0 6px;
+    letter-spacing:-.01em;
+  }
+  header p{
+    margin:0;
+    font-size:12.5px;
+    line-height:1.5;
+    color: var(--text-dim);
+  }
+
+  .card{
+    background: var(--panel-soft);
+    border:1px solid var(--border);
+    border-radius: var(--radius);
+    padding:18px;
+  }
+
+  /* readout */
+  #orbitalName{
+    font-family: var(--font-display);
+    font-size:38px;
+    font-weight:700;
+    line-height:1;
+    letter-spacing:-.01em;
+  }
+  #orbitalName sub{ font-size:.55em; }
+  #orbitalSubtitle{
+    font-family: var(--font-mono);
+    font-size:12px;
+    color: var(--text-dim);
+    margin-top:6px;
+  }
+  .stat-row{
+    display:flex;
+    gap:10px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .stat-chip{
+    font-family: var(--font-mono);
+    font-size:11px;
+    color: var(--text-dim);
+    background: rgba(255,255,255,.03);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:5px 9px;
+  }
+  .stat-chip b{ color: var(--text); font-weight:600; }
+
+  /* stepper */
+  .section-title{
+    font-family: var(--font-mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color: var(--text-faint);
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .stepper{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .step-btn{
+    width:42px; height:42px;
+    border-radius: 8px;
+    border:1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition: all .15s ease;
+    flex: 0 0 auto;
+  }
+  .step-btn:hover:not(:disabled){ border-color: var(--cyan); color: var(--cyan); }
+  .step-btn:disabled{ opacity:.3; cursor:not-allowed; }
+  .step-btn:focus-visible{ outline:2px solid var(--cyan); outline-offset:2px; }
+
+  .step-track{
+    flex:1;
+    text-align:center;
+  }
+  .step-track .big{
+    font-family: var(--font-mono);
+    font-size:13px;
+    color: var(--text);
+  }
+  .step-track .small{
+    font-family: var(--font-mono);
+    font-size:10.5px;
+    color: var(--text-faint);
+    margin-top:3px;
+  }
+
+  /* sub-orbital chips */
+  #subshellRow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .chip{
+    font-family: var(--font-mono);
+    font-size:12px;
+    padding:7px 11px;
+    border-radius:7px;
+    border:1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-dim);
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .chip:hover{ color:var(--text); border-color: var(--text-faint); }
+  .chip.active{
+    color: var(--bg);
+    background: var(--cyan);
+    border-color: var(--cyan);
+    font-weight:600;
+  }
+  .chip:focus-visible{ outline:2px solid var(--cyan); outline-offset:2px; }
+
+  /* madelung diagram */
+  #madelung{
+    display:grid;
+    grid-template-columns: 28px repeat(4, 1fr);
+    gap:5px;
+    align-items:center;
+  }
+  .mad-collabel{
+    font-family: var(--font-mono);
+    font-size:10.5px;
+    color: var(--text-faint);
+    text-align:center;
+  }
+  .mad-rowlabel{
+    font-family: var(--font-mono);
+    font-size:10.5px;
+    color: var(--text-faint);
+  }
+  .mad-cell{
+    aspect-ratio: 1;
+    border-radius:5px;
+    border:1px solid var(--border);
+    background: rgba(255,255,255,.02);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-mono);
+    font-size:10px;
+    color: var(--text-faint);
+    position:relative;
+    transition: all .25s ease;
+  }
+  .mad-cell.empty{ border-color:transparent; background:transparent; }
+  .mad-cell.filled{
+    color: var(--text-dim);
+    border-color: var(--border);
+    background: rgba(94,200,255,.06);
+  }
+  .mad-cell.current{
+    color: var(--bg);
+    background: var(--cyan);
+    border-color: var(--cyan);
+    font-weight:600;
+    box-shadow: 0 0 0 0 rgba(94,200,255,.6);
+    animation: pulse-cell 1.1s ease-out 1;
+  }
+  @keyframes pulse-cell{
+    0%{ box-shadow: 0 0 0 0 rgba(94,200,255,.55); }
+    100%{ box-shadow: 0 0 0 10px rgba(94,200,255,0); }
+  }
+
+  /* legend */
+  .legend-row{ display:flex; align-items:center; gap:9px; font-size:12px; color: var(--text-dim); margin-top:8px; }
+  .legend-row:first-of-type{ margin-top:0; }
+  .swatch{ width:11px; height:11px; border-radius:50%; flex:0 0 auto; }
+  .swatch.pos{ background: var(--cyan); box-shadow:0 0 8px var(--cyan); }
+  .swatch.neg{ background: var(--red); box-shadow:0 0 8px var(--red); }
+
+  footer{
+    font-size:11.5px;
+    line-height:1.5;
+    color: var(--text-faint);
+  }
+  footer a{ color: var(--text-dim); }
+
+  @media (max-width: 860px){
+    #app{ flex-direction: column; }
+    #viewport{ flex: 1 1 50%; min-height: 280px; }
+    #panel{ flex: 1 1 50%; border-left:none; border-top:1px solid var(--border); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .mad-cell.current{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="viewport">
+    <canvas id="scene"></canvas>
+    <div class="frame-corner tl"></div>
+    <div class="frame-corner tr"></div>
+    <div class="frame-corner bl"></div>
+    <div class="frame-corner br"></div>
+    <div id="viewLabel">ψ(r,θ,φ) · probability density</div>
+    <div id="hint">drag to rotate · scroll to zoom</div>
+    <button id="resetView" title="Reset camera">reset view</button>
+  </div>
+
+  <aside id="panel">
+
+    <header>
+      <div class="eyebrow">Electron Cloud Viewer</div>
+      <h1>Atomic Orbital Explorer</h1>
+      <p>Each point is a possible electron position, sampled from the real hydrogen-like probability density |ψ|². Step through energy levels in Madelung (Aufbau) order, the same diagonal-filling rule behind the periodic table.</p>
+    </header>
+
+    <div class="card">
+      <div id="orbitalName">1s</div>
+      <div id="orbitalSubtitle">n = 1 · ℓ = 0</div>
+      <div class="stat-row" id="statRow"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>Energy level</span><span id="stepCount">step 1 / 19</span></div>
+      <div class="stepper">
+        <button class="step-btn" id="stepDown" aria-label="Lower energy level">▾</button>
+        <div class="step-track">
+          <div class="big" id="stepMain">1s</div>
+          <div class="small" id="stepSub">n + ℓ = 1</div>
+        </div>
+        <button class="step-btn" id="stepUp" aria-label="Raise energy level">▴</button>
+      </div>
+    </div>
+
+    <div class="card" id="subshellCard" style="display:none;">
+      <div class="section-title"><span>Orbital orientation</span></div>
+      <div id="subshellRow"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>Madelung filling order</span></div>
+      <div id="madelung"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>Phase legend</span></div>
+      <div class="legend-row"><span class="swatch pos"></span>positive lobe of ψ</div>
+      <div class="legend-row"><span class="swatch neg"></span>negative lobe of ψ</div>
+    </div>
+
+    <footer>
+      Built from the exact hydrogen-atom wavefunctions (radial Laguerre part × real spherical harmonics). Cloud density and phase, not a fixed surface, so this is what the electron's location probability actually looks like.
+    </footer>
+
+  </aside>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   1. QUANTUM MECHANICS — hydrogen-like radial & angular parts
+   ========================================================= */
+
+function factorial(n){
+  let r = 1;
+  for(let i = 2; i <= n; i++) r *= i;
+  return r;
+}
+
+// Generalized Laguerre polynomial L_k^alpha(x) via recursion
+function genLaguerre(k, alpha, x){
+  if(k === 0) return 1;
+  if(k === 1) return 1 + alpha - x;
+  let Lkm2 = 1, Lkm1 = 1 + alpha - x, Lk = 0;
+  for(let i = 2; i <= k; i++){
+    Lk = ((2*i - 1 + alpha - x) * Lkm1 - (i - 1 + alpha) * Lkm2) / i;
+    Lkm2 = Lkm1;
+    Lkm1 = Lk;
+  }
+  return Lkm1;
+}
+
+// Radial wavefunction R_nl(r), atomic units (a0 = 1, Z = 1)
+function radialR(n, l, r){
+  const rho = 2 * r / n;
+  const k = n - l - 1;
+  const norm = Math.sqrt(Math.pow(2 / n, 3) * factorial(k) / (2 * n * factorial(n + l)));
+  return norm * Math.exp(-rho / 2) * Math.pow(rho, l) * genLaguerre(k, 2 * l + 1, rho);
+}
+
+// Associated Legendre polynomial P_l^m(x), m >= 0 (Numerical Recipes recursion)
+function assocLegendre(l, m, x){
+  m = Math.abs(m);
+  let pmm = 1;
+  if(m > 0){
+    const somx2 = Math.sqrt(Math.max(0, (1 - x) * (1 + x)));
+    let fact = 1;
+    for(let i = 1; i <= m; i++){ pmm *= -fact * somx2; fact += 2; }
+  }
+  if(l === m) return pmm;
+  let pmmp1 = x * (2 * m + 1) * pmm;
+  if(l === m + 1) return pmmp1;
+  let pll = 0;
+  for(let ll = m + 2; ll <= l; ll++){
+    pll = ((2*ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
+    pmm = pmmp1;
+    pmmp1 = pll;
+  }
+  return pll;
+}
+
+// Real spherical harmonic Y_lm(theta, phi)
+function realY(l, m, theta, phi){
+  const x = Math.cos(theta);
+  const am = Math.abs(m);
+  const plm = assocLegendre(l, am, x);
+  const K = Math.sqrt((2*l + 1) / (4 * Math.PI) * factorial(l - am) / factorial(l + am));
+  if(m === 0) return K * plm;
+  if(m > 0) return Math.SQRT2 * K * plm * Math.cos(m * phi);
+  return Math.SQRT2 * K * plm * Math.sin(am * phi);
+}
+
+/* =========================================================
+   2. SAMPLERS — rejection sampling of |psi|^2
+   ========================================================= */
+
+function buildRadialSampler(n, l, extentL){
+  const steps = 1600;
+  let fMax = 0;
+  for(let i = 0; i <= steps; i++){
+    const r = extentL * i / steps;
+    const Rv = radialR(n, l, r);
+    const f = r * r * Rv * Rv;
+    if(f > fMax) fMax = f;
+  }
+  fMax *= 1.1;
+  return function sampleR(){
+    for(let attempt = 0; attempt < 600; attempt++){
+      const r = Math.random() * extentL;
+      const Rv = radialR(n, l, r);
+      const f = r * r * Rv * Rv;
+      if(Math.random() * fMax <= f) return { r: r, sign: Rv >= 0 ? 1 : -1 };
+    }
+    return { r: extentL * 0.3, sign: 1 };
+  };
+}
+
+function buildAngularSampler(l, m){
+  const steps = 56;
+  let gMax = 0;
+  for(let i = 0; i <= steps; i++){
+    const theta = Math.PI * i / steps;
+    const s = Math.sin(theta);
+    for(let j = 0; j <= steps; j++){
+      const phi = 2 * Math.PI * j / steps;
+      const Y = realY(l, m, theta, phi);
+      const g = Y * Y * s;
+      if(g > gMax) gMax = g;
+    }
+  }
+  gMax *= 1.1;
+  return function sampleAngular(){
+    for(let attempt = 0; attempt < 600; attempt++){
+      const theta = Math.random() * Math.PI;
+      const phi = Math.random() * 2 * Math.PI;
+      const Y = realY(l, m, theta, phi);
+      const g = Y * Y * Math.sin(theta);
+      if(Math.random() * gMax <= g) return { theta: theta, phi: phi, sign: Y >= 0 ? 1 : -1 };
+    }
+    return { theta: Math.PI / 2, phi: 0, sign: 1 };
+  };
+}
+
+const POS_COLOR = [0.37, 0.78, 1.0];   // cyan  — positive lobe
+const NEG_COLOR = [1.0, 0.36, 0.42];   // red   — negative lobe
+
+function generateCloud(n, l, m, count){
+  count = count || 7200;
+  const extentL = n * n * 3.0 + 4;
+  const sampleR = buildRadialSampler(n, l, extentL);
+  const sampleA = buildAngularSampler(l, m);
+
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+
+  for(let i = 0; i < count; i++){
+    const rs = sampleR();
+    const as = sampleA();
+    const r = rs.r, theta = as.theta, phi = as.phi;
+    const sign = rs.sign * as.sign;
+
+    const sinT = Math.sin(theta);
+    const x = r * sinT * Math.cos(phi);
+    const y = r * Math.cos(theta);     // polar axis mapped to scene's vertical
+    const z = r * sinT * Math.sin(phi);
+
+    positions[i*3] = x;
+    positions[i*3+1] = y;
+    positions[i*3+2] = z;
+
+    const c = sign >= 0 ? POS_COLOR : NEG_COLOR;
+    colors[i*3] = c[0];
+    colors[i*3+1] = c[1];
+    colors[i*3+2] = c[2];
+  }
+
+  return { positions: positions, colors: colors, extentL: extentL };
+}
+
+/* =========================================================
+   3. ORBITAL DATA — Madelung (n+l) order & real sub-orbitals
+   ========================================================= */
+
+const MADELUNG_ORDER = [
+  {n:1,l:0}, {n:2,l:0}, {n:2,l:1}, {n:3,l:0}, {n:3,l:1},
+  {n:4,l:0}, {n:3,l:2}, {n:4,l:1}, {n:5,l:0}, {n:4,l:2},
+  {n:5,l:1}, {n:6,l:0}, {n:4,l:3}, {n:5,l:2}, {n:6,l:1},
+  {n:7,l:0}, {n:5,l:3}, {n:6,l:2}, {n:7,l:1}
+];
+
+const L_LETTER = ['s','p','d','f'];
+
+const SUBORBITALS = {
+  0: [ {m:0, label:'s'} ],
+  1: [ {m:0, label:'p_z'}, {m:1, label:'p_x'}, {m:-1, label:'p_y'} ],
+  2: [ {m:0, label:'d_z²'}, {m:1, label:'d_xz'}, {m:-1, label:'d_yz'}, {m:2, label:'d_x²-y²'}, {m:-2, label:'d_xy'} ],
+  3: [ {m:0, label:'f_z³'}, {m:1, label:'f_xz²'}, {m:-1, label:'f_yz²'}, {m:2, label:'f_z(x²-y²)'}, {m:-2, label:'f_xyz'}, {m:3, label:'f_x(x²-3y²)'}, {m:-3, label:'f_y(3x²-y²)'} ]
+};
+
+let stepIndex = 0;
+let subIndex = 0;
+
+/* =========================================================
+   4. THREE.JS SCENE
+   ========================================================= */
+
+let scene, camera, renderer, group, pointsObj, nucleus, glowSprite;
+let rotY = 0.5, rotX = 0.25;
+let dragging = false, lastX = 0, lastY = 0;
+let autoRotate = true;
+let currentExtent = 8;
+let targetDistance = 14, currentDistance = 14;
+const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function makeRadialTexture(centerColor, size){
+  size = size || 64;
+  const cnv = document.createElement('canvas');
+  cnv.width = cnv.height = size;
+  const ctx = cnv.getContext('2d');
+  const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  grad.addColorStop(0, centerColor);
+  grad.addColorStop(0.45, centerColor.replace('1)', '0.55)'));
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(cnv);
+}
+
+function initScene(){
+  const canvas = document.getElementById('scene');
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, 1, 0.05, 8000);
+  camera.position.set(0, 0, currentDistance);
+
+  group = new THREE.Group();
+  scene.add(group);
+
+  // nucleus
+  const nucGeo = new THREE.SphereGeometry(0.16, 20, 20);
+  const nucMat = new THREE.MeshBasicMaterial({ color: 0xfff0cf });
+  nucleus = new THREE.Mesh(nucGeo, nucMat);
+  group.add(nucleus);
+
+  const glowTex = makeRadialTexture('rgba(255,240,207,1)');
+  const glowMat = new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  glowSprite = new THREE.Sprite(glowMat);
+  group.add(glowSprite);
+
+  window.addEventListener('resize', onResize);
+  onResize();
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+
+  document.getElementById('resetView').addEventListener('click', function(){
+    rotY = 0.5; rotX = 0.25;
+    targetDistance = currentExtent * 1.7;
+    autoRotate = true;
+  });
+
+  animate();
+}
+
+function onResize(){
+  const vp = document.getElementById('viewport');
+  const w = vp.clientWidth, h = vp.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+function onPointerDown(e){ dragging = true; lastX = e.clientX; lastY = e.clientY; autoRotate = false; }
+function onPointerMove(e){
+  if(!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  rotY += dx * 0.005;
+  rotX += dy * 0.005;
+  rotX = Math.max(-1.45, Math.min(1.45, rotX));
+}
+function onPointerUp(){ dragging = false; }
+function onWheel(e){
+  e.preventDefault();
+  targetDistance *= Math.pow(1.0016, e.deltaY);
+  const minD = currentExtent * 0.45, maxD = currentExtent * 5.5;
+  targetDistance = Math.max(minD, Math.min(maxD, targetDistance));
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(autoRotate && !reducedMotion) rotY += 0.0008;
+  group.rotation.y = rotY;
+  group.rotation.x = rotX;
+  currentDistance += (targetDistance - currentDistance) * 0.08;
+  camera.position.set(0, 0, currentDistance);
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+}
+
+function rebuildCloud(n, l, m){
+  const data = generateCloud(n, l, m);
+  currentExtent = data.extentL;
+
+  if(pointsObj){
+    group.remove(pointsObj);
+    pointsObj.geometry.dispose();
+    pointsObj.material.dispose();
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+
+  const dotTex = makeRadialTexture('rgba(255,255,255,1)');
+  const mat = new THREE.PointsMaterial({
+    size: Math.max(currentExtent * 0.012, 0.05),
+    map: dotTex,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true
+  });
+
+  pointsObj = new THREE.Points(geo, mat);
+  group.add(pointsObj);
+
+  const nucScale = Math.max(currentExtent * 0.01, 0.12);
+  nucleus.scale.setScalar(nucScale / 0.16);
+  glowSprite.scale.setScalar(currentExtent * 0.1);
+
+  targetDistance = currentExtent * 1.7;
+}
+
+/* =========================================================
+   5. UI WIRING
+   ========================================================= */
+
+function currentOrbital(){
+  const o = MADELUNG_ORDER[stepIndex];
+  const subs = SUBORBITALS[o.l];
+  const sub = subs[Math.min(subIndex, subs.length - 1)];
+  return { n: o.n, l: o.l, m: sub.m, label: sub.label, subs: subs };
+}
+
+function renderSubshellChips(){
+  const o = MADELUNG_ORDER[stepIndex];
+  const subs = SUBORBITALS[o.l];
+  const card = document.getElementById('subshellCard');
+  const row = document.getElementById('subshellRow');
+  row.innerHTML = '';
+
+  if(subs.length === 1){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  subs.forEach(function(sub, i){
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (i === subIndex ? ' active' : '');
+    btn.textContent = o.n + sub.label;
+    btn.addEventListener('click', function(){
+      subIndex = i;
+      refresh(false);
+    });
+    row.appendChild(btn);
+  });
+}
+
+function renderMadelungGrid(){
+  const grid = document.getElementById('madelung');
+  grid.innerHTML = '';
+
+  const order = {};
+  MADELUNG_ORDER.forEach(function(o, i){ order[o.n + '-' + o.l] = i; });
+
+  grid.appendChild(Object.assign(document.createElement('div'), { className: 'mad-rowlabel' }));
+  ['s','p','d','f'].forEach(function(letter){
+    const el = document.createElement('div');
+    el.className = 'mad-collabel';
+    el.textContent = letter;
+    grid.appendChild(el);
+  });
+
+  for(let n = 1; n <= 7; n++){
+    const rowLabel = document.createElement('div');
+    rowLabel.className = 'mad-rowlabel';
+    rowLabel.textContent = 'n' + n;
+    grid.appendChild(rowLabel);
+
+    for(let l = 0; l <= 3; l++){
+      const cell = document.createElement('div');
+      const key = n + '-' + l;
+      if(l >= n){
+        cell.className = 'mad-cell empty';
+      } else {
+        const idx = order[key];
+        let cls = 'mad-cell';
+        if(idx <= stepIndex) cls += ' filled';
+        if(idx === stepIndex) cls += ' current';
+        cell.className = cls;
+        cell.textContent = (idx + 1);
+        cell.title = n + L_LETTER[l] + ' — fill order ' + (idx + 1);
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function updateInfoPanel(){
+  const orb = currentOrbital();
+  const nameEl = document.getElementById('orbitalName');
+  nameEl.textContent = orb.n + orb.label.replace('_', '');
+  document.getElementById('orbitalSubtitle').textContent =
+    'n = ' + orb.n + ' · ℓ = ' + orb.l + ' (' + L_LETTER[orb.l] + ')';
+
+  const subshellCapacity = 2 * (2 * orb.l + 1);
+  const stats = [
+    ['orbital', orb.n + orb.label.replace('_','')],
+    ['holds', '2 e⁻'],
+    ['subshell ' + orb.n + L_LETTER[orb.l] + ' holds', subshellCapacity + ' e⁻'],
+  ];
+  const statRow = document.getElementById('statRow');
+  statRow.innerHTML = '';
+  stats.forEach(function(pair){
+    const chip = document.createElement('div');
+    chip.className = 'stat-chip';
+    chip.innerHTML = pair[0] + ': <b>' + pair[1] + '</b>';
+    statRow.appendChild(chip);
+  });
+
+  document.getElementById('stepMain').textContent = orb.n + L_LETTER[orb.l];
+  document.getElementById('stepSub').textContent = 'n + ℓ = ' + (orb.n + orb.l);
+  document.getElementById('stepCount').textContent = 'step ' + (stepIndex + 1) + ' / ' + MADELUNG_ORDER.length;
+
+  document.getElementById('stepDown').disabled = stepIndex === 0;
+  document.getElementById('stepUp').disabled = stepIndex === MADELUNG_ORDER.length - 1;
+}
+
+function refresh(resetSub){
+  if(resetSub) subIndex = 0;
+  const orb = currentOrbital();
+  rebuildCloud(orb.n, orb.l, orb.m);
+  updateInfoPanel();
+  renderSubshellChips();
+  renderMadelungGrid();
+}
+
+function init(){
+  if(typeof THREE === 'undefined'){
+    const vp = document.getElementById('viewport');
+    vp.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center;font-family:IBM Plex Mono,monospace;font-size:13px;color:#8b96a3;line-height:1.6;">Couldn\'t load the 3D library (three.js) from the CDN.<br>Check your network/ad-blocker settings and reload.</div>';
+    return;
+  }
+  initScene();
+  refresh(true);
+
+  document.getElementById('stepUp').addEventListener('click', function(){
+    if(stepIndex < MADELUNG_ORDER.length - 1){ stepIndex++; refresh(true); }
+  });
+  document.getElementById('stepDown').addEventListener('click', function(){
+    if(stepIndex > 0){ stepIndex--; refresh(true); }
+  });
+
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowUp' || e.key === 'ArrowRight'){
+      e.preventDefault();
+      if(stepIndex < MADELUNG_ORDER.length - 1){ stepIndex++; refresh(true); }
+    } else if(e.key === 'ArrowDown' || e.key === 'ArrowLeft'){
+      e.preventDefault();
+      if(stepIndex > 0){ stepIndex--; refresh(true); }
+    }
+  });
+}
+
+if(document.readyState === 'complete' || document.readyState === 'interactive'){
+  setTimeout(init, 0);
+} else {
+  document.addEventListener('DOMContentLoaded', init);
+}
+
+})();
+</script>
+</body>
+</html>
