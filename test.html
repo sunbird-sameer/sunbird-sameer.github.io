@@ -3,117 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Phone Mic Test</title>
+    <title>Nokia Mic Hardware Test</title>
     <style>
-        body {
-            font-family: sans-serif;
-            padding: 20px;
-            text-align: center;
-            background-color: #f0f0f0;
-        }
-        button {
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: bold;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:disabled {
-            background-color: #ccc;
-        }
-        #output {
-            margin-top: 20px;
-            padding: 15px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            min-height: 50px;
-            text-align: left;
-        }
-        #status {
-            color: #666;
-            font-style: italic;
-            margin-bottom: 10px;
-        }
+        body { font-family: sans-serif; padding: 15px; text-align: center; background: #fff; color: #000; }
+        button { padding: 10px; width: 80%; margin: 5px 0; font-weight: bold; }
+        #status { color: red; margin: 10px 0; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h2>Microphone to Text Test</h2>
-    <p>Click the button and start speaking.</p>
+    <h3>Nokia 3210 Mic Hardware Test</h3>
+    <div id="status">Status: Click Record to prompt mic</div>
     
-    <button id="start-btn">Start Listening</button>
+    <button id="rec-btn">1. Start Recording</button>
+    <button id="stop-btn" disabled>2. Stop</button>
     
-    <div id="status">Status: Idle</div>
-    <h3>Result:</h3>
-    <div id="output">Your spoken text will appear here...</div>
+    <br><br>
+    <audio id="audio-playback" controls></audio>
 
     <script>
-        const startBtn = document.getElementById('start-btn');
+        const recBtn = document.getElementById('rec-btn');
+        const stopBtn = document.getElementById('stop-btn');
         const statusDiv = document.getElementById('status');
-        const outputDiv = document.getElementById('output');
+        const playback = document.getElementById('audio-playback');
+        
+        let mediaRecorder;
+        let audioChunks = [];
 
-        // Check for Web Speech API support (Chromium uses webkitSpeechRecognition)
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            statusDiv.textContent = "Status: Error";
-            outputDiv.textContent = "Speech Recognition API is not supported in this browser.";
-            startBtn.disabled = true;
-        } else {
-            const recognition = new SpeechRecognition();
+        recBtn.addEventListener('click', async () => {
+            statusDiv.textContent = "Status: Requesting Mic...";
+            audioChunks = [];
             
-            // Configuration
-            recognition.continuous = false; // Stops listening when user pauses
-            recognition.interimResults = false; // Only return final results
-            recognition.lang = 'en-US'; // Set language
+            try {
+                // Testing basic hardware access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                statusDiv.textContent = "Status: Recording... Speak!";
+                statusDiv.style.color = "green";
+                
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    playback.src = URL.createObjectURL(audioBlob);
+                    statusDiv.textContent = "Status: Done. Try playing audio below.";
+                    statusDiv.style.color = "blue";
+                };
+                
+                mediaRecorder.start();
+                recBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+            } catch (err) {
+                statusDiv.textContent = "Status: Blocked (" + err.name + ")";
+                statusDiv.style.color = "red";
+                alert("Mic Access Failed: " + err.message);
+            }
+        });
 
-            // When the button is clicked
-            startBtn.addEventListener('click', () => {
-                try {
-                    recognition.start();
-                } catch (e) {
-                    statusDiv.textContent = "Status: Already listening...";
-                }
-            });
-
-            // Process lifecycle events
-            recognition.onstart = () => {
-                statusDiv.textContent = "Status: Listening... Speak now.";
-                startBtn.textContent = "Listening...";
-                startBtn.disabled = true;
-            };
-
-            recognition.onerror = (event) => {
-                statusDiv.textContent = `Status: Error (${event.error})`;
-                resetButton();
-                if (event.error === 'not-allowed') {
-                    outputDiv.textContent = "Permission blocked. Please allow microphone access.";
-                }
-            };
-
-            recognition.onend = () => {
-                resetButton();
-                if (statusDiv.textContent.includes("Listening")) {
-                    statusDiv.textContent = "Status: Stopped listening.";
-                }
-            };
-
-            // Capture the result
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                outputDiv.textContent = transcript;
-                statusDiv.textContent = "Status: Speech recognized successfully!";
-            };
-        }
-
-        function resetButton() {
-            startBtn.textContent = "Start Listening";
-            startBtn.disabled = false;
-        }
+        stopBtn.addEventListener('click', () => {
+            if(mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                // Stop tracks to release mic
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                recBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        });
     </script>
 </body>
 </html>
