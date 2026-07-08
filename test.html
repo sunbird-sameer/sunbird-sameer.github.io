@@ -16,14 +16,6 @@
             max-width: 400px;
             margin: 0 auto;
         }
-        input[type="password"] {
-            width: 85%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-        }
         button { 
             padding: 12px; 
             width: 90%; 
@@ -61,9 +53,7 @@
     <div class="container">
         <h3>Groq Cloud Speech to Text</h3>
         
-        <input type="password" id="api-key-input" placeholder="Paste Groq API Key (gsk_...)" />
-        
-        <div id="status">Status: Waiting for API Key...</div>
+        <div id="status">Status: Ready to record!</div>
         
         <button id="action-btn">Press & Speak (4 Seconds)</button>
         
@@ -72,52 +62,37 @@
     </div>
 
     <script>
+        // HARDCODE YOUR API KEY HERE FOR TESTING
+        const API_KEY = "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"; 
+
         const actionBtn = document.getElementById('action-btn');
         const statusDiv = document.getElementById('status');
         const outputDiv = document.getElementById('output');
-        const apiKeyInput = "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";
         
         let mediaRecorder;
         let audioChunks = [];
 
-        // Simple status update based on input
-        apiKeyInput.addEventListener('input', () => {
-            if(apiKeyInput.value.trim().startsWith('gsk_')) {
-                statusDiv.textContent = "Status: Ready to record!";
-            } else {
-                statusDiv.textContent = "Status: Invalid Key Format";
-            }
-        });
-
         actionBtn.addEventListener('click', async () => {
-            const apiKey = apiKeyInput.value.trim();
-            
-            if (!apiKey) {
-                alert("Please paste your Groq API key first!");
-                statusDiv.textContent = "Status: Missing API Key";
-                return;
-            }
-
             try {
                 audioChunks = [];
-                // Ask for mic permission
+                // Request microphone stream
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                 
                 mediaRecorder.onstop = async () => {
-                    // Turn off hardware immediately after recording stops
+                    // Turn off phone hardware right after recording stops
                     stream.getTracks().forEach(track => track.stop());
                     
                     statusDiv.textContent = "Status: Processing audio...";
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     
-                    // Send to Groq
-                    await sendToTranscriptionAPI(audioBlob, apiKey);
+                    // Route to Groq API
+                    await sendToTranscriptionAPI(audioBlob);
                 };
 
-                // Record for 4 seconds
+                // Record a fixed 4-second snippet
                 mediaRecorder.start();
                 statusDiv.textContent = "Status: Listening... Speak now.";
                 actionBtn.disabled = true;
@@ -133,7 +108,7 @@
             }
         });
 
-        async function sendToTranscriptionAPI(audioBlob, apiKey) {
+        async function sendToTranscriptionAPI(audioBlob) {
             const formData = new FormData();
             formData.append('file', audioBlob, 'audio.wav');
             formData.append('model', 'whisper-large-v3-turbo');
@@ -147,7 +122,7 @@
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`
+                        'Authorization': `Bearer ${API_KEY}`
                     },
                     body: formData
                 });
