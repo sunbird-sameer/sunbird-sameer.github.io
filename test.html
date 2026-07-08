@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Phone Mic Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            text-align: center;
+            background-color: #f0f0f0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 50px;
+            text-align: left;
+        }
+        #status {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Microphone to Text Test</h2>
+    <p>Click the button and start speaking.</p>
+    
+    <button id="start-btn">Start Listening</button>
+    
+    <div id="status">Status: Idle</div>
+    <h3>Result:</h3>
+    <div id="output">Your spoken text will appear here...</div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const statusDiv = document.getElementById('status');
+        const outputDiv = document.getElementById('output');
+
+        // Check for Web Speech API support (Chromium uses webkitSpeechRecognition)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            statusDiv.textContent = "Status: Error";
+            outputDiv.textContent = "Speech Recognition API is not supported in this browser.";
+            startBtn.disabled = true;
+        } else {
+            const recognition = new SpeechRecognition();
+            
+            // Configuration
+            recognition.continuous = false; // Stops listening when user pauses
+            recognition.interimResults = false; // Only return final results
+            recognition.lang = 'en-US'; // Set language
+
+            // When the button is clicked
+            startBtn.addEventListener('click', () => {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    statusDiv.textContent = "Status: Already listening...";
+                }
+            });
+
+            // Process lifecycle events
+            recognition.onstart = () => {
+                statusDiv.textContent = "Status: Listening... Speak now.";
+                startBtn.textContent = "Listening...";
+                startBtn.disabled = true;
+            };
+
+            recognition.onerror = (event) => {
+                statusDiv.textContent = `Status: Error (${event.error})`;
+                resetButton();
+                if (event.error === 'not-allowed') {
+                    outputDiv.textContent = "Permission blocked. Please allow microphone access.";
+                }
+            };
+
+            recognition.onend = () => {
+                resetButton();
+                if (statusDiv.textContent.includes("Listening")) {
+                    statusDiv.textContent = "Status: Stopped listening.";
+                }
+            };
+
+            // Capture the result
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                outputDiv.textContent = transcript;
+                statusDiv.textContent = "Status: Speech recognized successfully!";
+            };
+        }
+
+        function resetButton() {
+            startBtn.textContent = "Start Listening";
+            startBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
