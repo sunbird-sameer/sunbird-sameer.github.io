@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Comic Reader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  html,body{
+    margin:0;padding:0;
+    width:100%;height:100%;
+    background:#0f1f0a;
+    overflow:hidden;
+  }
+  #canvas{
+    display:block;
+    width:100%;height:100%;
+  }
+  #filepicker{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:#9bbf8a;
+    color:#0f1f0a;
+    font-family:monospace;
+    font-size:14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:10px;
+    word-break:break-all;
+  }
+  #pageinfo{
+    position:absolute;
+    bottom:2px;right:4px;
+    font-family:monospace;
+    font-size:10px;
+    color:#0f1f0a;
+    mix-blend-mode:difference;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="pageinfo"></div>
+<div id="filepicker">
+  LOADING COMIC...
+</div>
+
+<script>
+// ---- set this to the comic file sitting alongside this HTML file ----
+const COMIC_FILENAME = 'comic.cbz';
+// ----------------------------------------------------------------------
+
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const filepicker = document.getElementById('filepicker');
+  const pageinfo = document.getElementById('pageinfo');
+
+  let SCREEN_W = 84, SCREEN_H = 48;
+  let pages = [];
+  let currentPage = 0;
+  let currentImg = null;
+
+  // Nokia 3210 4G (KaiOS) native screen resolution: 240x320 color QVGA.
+  // Rendering at native res so images look sharp, not dithered/pixelated.
+  const LCD_W = 240;
+  const LCD_H = 320;
+
+  // set true if you want the retro green-monochrome dithered look instead
+  // of normal full-color rendering
+  const RETRO_MODE = false;
+
+  function resizeCanvas(){
+    canvas.width = LCD_W;
+    canvas.height = LCD_H;
+    canvas.style.width = (window.innerWidth || LCD_W) + 'px';
+    canvas.style.height = (window.innerHeight || LCD_H) + 'px';
+    SCREEN_W = LCD_W;
+    SCREEN_H = LCD_H;
+    if(currentImg) renderImage(currentImg);
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---- render: either normal full-color, or retro monochrome dithered ----
+  function renderImage(img){
+    const scale = Math.min(SCREEN_W/img.width, SCREEN_H/img.height);
+    const dw = img.width*scale, dh = img.height*scale;
+    const dx = (SCREEN_W-dw)/2, dy = (SCREEN_H-dh)/2;
+
+    ctx.fillStyle = RETRO_MODE ? '#9bbf8a' : '#000';
+    ctx.fillRect(0,0,SCREEN_W,SCREEN_H);
+    ctx.drawImage(img, dx, dy, dw, dh);
+
+    if(!RETRO_MODE) return; // native color rendering, nothing more to do
+
+    // retro dithered monochrome pass, only used if RETRO_MODE is on
+    const imgData = ctx.getImageData(0,0,SCREEN_W,SCREEN_H);
+    const data = imgData.data;
+    const bayer = [
+      [ 0, 8, 2,10],
+      [12, 4,14, 6],
+      [ 3,11, 1, 9],
+      [15, 7,13, 5]
+    ];
+    for(let y=0;y<SCREEN_H;y++){
+      for(let x=0;x<SCREEN_W;x++){
+        const i = (y*SCREEN_W+x)*4;
+        const r=data[i], g=data[i+1], b=data[i+2];
+        const lum = 0.299*r+0.587*g+0.114*b;
+        const threshold = (bayer[y%4][x%4]+0.5)/16*255;
+        const on = lum < threshold;
+        if(on){ data[i]=15; data[i+1]=31; data[i+2]=10; }
+        else { data[i]=155; data[i+1]=191; data[i+2]=138; }
+        data[i+3]=255;
+      }
+    }
+    ctx.putImageData(imgData,0,0);
+  }
+
+  function showPage(idx){
+    if(pages.length===0) return;
+    currentPage = Math.max(0, Math.min(pages.length-1, idx));
+    const img = new Image();
+    img.onload = ()=>{ currentImg = img; renderImage(img); };
+    img.src = pages[currentPage].url;
+    pageinfo.textContent = (currentPage+1)+'/'+pages.length;
+  }
+
+  function nextPage(){ showPage(currentPage+1); }
+  function prevPage(){ showPage(currentPage-1); }
+
+  function fetchArrayBuffer(url){
+    return new Promise((resolve, reject)=>{
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.responseType = 'arraybuffer';
+      xhr.onload = function(){
+        if(xhr.status === 200 || xhr.status === 0){ // status 0 = file:// success in some browsers
+          resolve(xhr.response);
+        } else {
+          reject(new Error('HTTP ' + xhr.status));
+        }
+      };
+      xhr.onerror = function(){ reject(new Error('XHR network error')); };
+      xhr.send();
+    });
+  }
+
+  async function loadComic(filename){
+    filepicker.textContent = 'LOADING ' + filename + ' ...';
+    filepicker.style.display = 'flex';
+    try{
+      const buf = await fetchArrayBuffer(filename);
+      const zip = await JSZip.loadAsync(buf);
+      const entries = Object.values(zip.files)
+        .filter(f=>!f.dir && /\.(png|jpe?g|gif|webp|bmp)$/i.test(f.name))
+        .sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true}));
+
+      if(entries.length===0){
+        filepicker.textContent = 'NO IMAGES FOUND IN FILE';
+        return;
+      }
+
+      pages = [];
+      for(const entry of entries){
+        const blob = await entry.async('blob');
+        pages.push({ name: entry.name, url: URL.createObjectURL(blob) });
+      }
+      filepicker.style.display = 'none';
+      resizeCanvas();
+      showPage(0);
+    }catch(err){
+      filepicker.textContent = 'LOAD ERROR:\n' + err.message + '\n\nCheck that ' + filename + ' is in the same folder as this HTML file, and try serving it over http:// instead of opening it directly (file://) if the error persists.';
+      console.error(err);
+    }
+  }
+
+  // key handling: works with real phone hardware keys mapped by the browser
+  // 2/8 = up/down (classic feature phone nav), arrows for desktop testing,
+  // 4/6 = left/right as alternative, 5/Enter/OK to refresh
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key;
+    if(k==='2' || k==='ArrowUp' || k==='ArrowLeft' || k==='4') prevPage();
+    else if(k==='8' || k==='ArrowDown' || k==='ArrowRight' || k==='6') nextPage();
+    else if(k==='5' || k==='Enter'){ if(currentImg) renderImage(currentImg); }
+  });
+
+  resizeCanvas();
+  loadComic(COMIC_FILENAME);
+})();
+</script>
+</body>
+</html>
