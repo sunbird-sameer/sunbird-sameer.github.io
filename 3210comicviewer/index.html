@@ -240,7 +240,7 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
   }
 
   async function loadComic(filename, startPageOverride){
-    filepicker.textContent = 'LOADING ' + filename + ' ...';
+    filepicker.textContent = 'LOADING ...';
     filepicker.style.display = 'flex';
     try{
       const buf = await fetchArrayBuffer(filename);
