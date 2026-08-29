@@ -50,7 +50,7 @@
 
 <script>
 // ---- set this to the comic file sitting alongside this HTML file ----
-const COMIC_FILENAME = 'comic.cbz';
+const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.cbz';
 // ----------------------------------------------------------------------
 
 (function(){
@@ -60,9 +60,15 @@ const COMIC_FILENAME = 'comic.cbz';
   const pageinfo = document.getElementById('pageinfo');
 
   let SCREEN_W = 84, SCREEN_H = 48;
-  let pages = [];
+  let zipRef = null;      // the JSZip index (cheap — compressed data, not decoded)
+  let entries = [];       // sorted list of zip file entries (metadata only)
   let currentPage = 0;
   let currentImg = null;
+
+  // small cache of decoded pages so flipping back/forth doesn't re-decode
+  // every time, but memory stays bounded regardless of comic length
+  const CACHE_RADIUS = 1; // keep current page +/- this many pages decoded
+  const cache = new Map(); // pageIndex -> { url, img }
 
   // Nokia 3210 4G (KaiOS) native screen resolution: 240x320 color QVGA.
   // Rendering at native res so images look sharp, not dithered/pixelated.
@@ -120,18 +126,6 @@ const COMIC_FILENAME = 'comic.cbz';
     ctx.putImageData(imgData,0,0);
   }
 
-  function showPage(idx){
-    if(pages.length===0) return;
-    currentPage = Math.max(0, Math.min(pages.length-1, idx));
-    const img = new Image();
-    img.onload = ()=>{ currentImg = img; renderImage(img); };
-    img.src = pages[currentPage].url;
-    pageinfo.textContent = (currentPage+1)+'/'+pages.length;
-  }
-
-  function nextPage(){ showPage(currentPage+1); }
-  function prevPage(){ showPage(currentPage-1); }
-
   function fetchArrayBuffer(url){
     return new Promise((resolve, reject)=>{
       const xhr = new XMLHttpRequest();
@@ -149,13 +143,58 @@ const COMIC_FILENAME = 'comic.cbz';
     });
   }
 
+  async function decodePage(idx){
+    if(idx < 0 || idx >= entries.length) return null;
+    if(cache.has(idx)) return cache.get(idx);
+    const blob = await entries[idx].async('blob');
+    const url = URL.createObjectURL(blob);
+    const img = await new Promise((resolve, reject)=>{
+      const im = new Image();
+      im.onload = ()=>resolve(im);
+      im.onerror = reject;
+      im.src = url;
+    });
+    const entry = { url, img };
+    cache.set(idx, entry);
+    return entry;
+  }
+
+  function evictOutsideWindow(centerIdx){
+    for(const idx of Array.from(cache.keys())){
+      if(Math.abs(idx - centerIdx) > CACHE_RADIUS){
+        const entry = cache.get(idx);
+        URL.revokeObjectURL(entry.url);
+        cache.delete(idx);
+      }
+    }
+  }
+
+  async function showPage(idx){
+    if(entries.length===0) return;
+    currentPage = Math.max(0, Math.min(entries.length-1, idx));
+    pageinfo.textContent = (currentPage+1)+'/'+entries.length;
+
+    const entry = await decodePage(currentPage);
+    if(!entry) return;
+    currentImg = entry.img;
+    renderImage(currentImg);
+
+    // free anything outside the keep-window, then prefetch neighbors
+    evictOutsideWindow(currentPage);
+    decodePage(currentPage - 1);
+    decodePage(currentPage + 1);
+  }
+
+  function nextPage(){ showPage(currentPage+1); }
+  function prevPage(){ showPage(currentPage-1); }
+
   async function loadComic(filename){
     filepicker.textContent = 'LOADING ' + filename + ' ...';
     filepicker.style.display = 'flex';
     try{
       const buf = await fetchArrayBuffer(filename);
-      const zip = await JSZip.loadAsync(buf);
-      const entries = Object.values(zip.files)
+      zipRef = await JSZip.loadAsync(buf);
+      entries = Object.values(zipRef.files)
         .filter(f=>!f.dir && /\.(png|jpe?g|gif|webp|bmp)$/i.test(f.name))
         .sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true}));
 
@@ -164,14 +203,9 @@ const COMIC_FILENAME = 'comic.cbz';
         return;
       }
 
-      pages = [];
-      for(const entry of entries){
-        const blob = await entry.async('blob');
-        pages.push({ name: entry.name, url: URL.createObjectURL(blob) });
-      }
       filepicker.style.display = 'none';
       resizeCanvas();
-      showPage(0);
+      await showPage(0);
     }catch(err){
       filepicker.textContent = 'LOAD ERROR:\n' + err.message + '\n\nCheck that ' + filename + ' is in the same folder as this HTML file, and try serving it over http:// instead of opening it directly (file://) if the error persists.';
       console.error(err);
