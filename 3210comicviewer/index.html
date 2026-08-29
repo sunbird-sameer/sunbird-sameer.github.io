@@ -30,6 +30,26 @@
     padding:10px;
     word-break:break-all;
   }
+  #filepicker input[type=number]{
+    font-family:monospace;
+    font-size:16px;
+    width:70px;
+    text-align:center;
+    padding:4px;
+    margin:10px 0;
+  }
+  #filepicker button{
+    font-family:monospace;
+    font-size:14px;
+    padding:8px 20px;
+    background:#0f1f0a;
+    color:#9bbf8a;
+    border:none;
+    border-radius:4px;
+  }
+  #filepicker button:active{
+    opacity:.7;
+  }
   #pageinfo{
     position:absolute;
     bottom:2px;right:4px;
@@ -45,7 +65,12 @@
 <canvas id="canvas"></canvas>
 <div id="pageinfo"></div>
 <div id="filepicker">
-  LOADING COMIC...
+  <div id="pagePrompt">
+    GO TO PAGE:<br>
+    <input type="number" id="pageInput" min="1" value="1" inputmode="numeric">
+    <br>
+    <button id="goBtn">START</button>
+  </div>
 </div>
 
 <script>
@@ -208,20 +233,10 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
       const raw = localStorage.getItem(progressKey(COMIC_FILENAME));
       if(raw !== null) lastPage = parseInt(raw, 10);
     }catch(e){ /* ignore */ }
-
-    const suggestion = lastPage + 1; // 1-indexed for humans
-    const answer = window.prompt(
-      'Go to page (1-' + totalPages + '):',
-      String(suggestion)
-    );
-
-    if(answer === null) return lastPage; // cancelled, use last remembered page
-    const n = parseInt(answer, 10);
-    if(isNaN(n)) return lastPage;
-    return Math.max(0, Math.min(totalPages - 1, n - 1)); // clamp, back to 0-indexed
+    return Math.max(0, Math.min(totalPages - 1, lastPage));
   }
 
-  async function loadComic(filename){
+  async function loadComic(filename, startPageOverride){
     filepicker.textContent = 'LOADING ' + filename + ' ...';
     filepicker.style.display = 'flex';
     try{
@@ -238,7 +253,9 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
 
       filepicker.style.display = 'none';
       resizeCanvas();
-      const target = promptForStartPage(entries.length);
+      const target = startPageOverride !== undefined
+        ? Math.max(0, Math.min(entries.length - 1, startPageOverride))
+        : promptForStartPage(entries.length);
       await showPage(target);
     }catch(err){
       filepicker.textContent = 'LOAD ERROR:\n' + err.message + '\n\nCheck that ' + filename + ' is in the same folder as this HTML file, and try serving it over http:// instead of opening it directly (file://) if the error persists.';
@@ -257,7 +274,27 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
   });
 
   resizeCanvas();
-  loadComic(COMIC_FILENAME);
+
+  // ---- on-page "go to page" prompt, shown before loading the comic ----
+  const pageInput = document.getElementById('pageInput');
+  const goBtn = document.getElementById('goBtn');
+
+  // pre-fill with last remembered page, if any
+  try{
+    const raw = localStorage.getItem(progressKey(COMIC_FILENAME));
+    if(raw !== null) pageInput.value = String(parseInt(raw, 10) + 1);
+  }catch(e){ /* ignore */ }
+
+  function startWithRequestedPage(){
+    const n = parseInt(pageInput.value, 10);
+    const requestedZeroIndexed = (!isNaN(n) && n >= 1) ? (n - 1) : 0;
+    loadComic(COMIC_FILENAME, requestedZeroIndexed);
+  }
+
+  goBtn.addEventListener('click', startWithRequestedPage);
+  pageInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') startWithRequestedPage();
+  });
 })();
 </script>
 </body>
