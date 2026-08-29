@@ -183,10 +183,43 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
     evictOutsideWindow(currentPage);
     decodePage(currentPage - 1);
     decodePage(currentPage + 1);
+
+    saveProgress();
   }
 
   function nextPage(){ showPage(currentPage+1); }
   function prevPage(){ showPage(currentPage-1); }
+
+  function progressKey(filename){
+    return 'comic-reader-progress:' + filename;
+  }
+
+  function saveProgress(){
+    try{
+      localStorage.setItem(progressKey(COMIC_FILENAME), String(currentPage));
+    }catch(e){
+      console.warn('Could not save progress to localStorage:', e);
+    }
+  }
+
+  function promptForStartPage(totalPages){
+    let lastPage = 0;
+    try{
+      const raw = localStorage.getItem(progressKey(COMIC_FILENAME));
+      if(raw !== null) lastPage = parseInt(raw, 10);
+    }catch(e){ /* ignore */ }
+
+    const suggestion = lastPage + 1; // 1-indexed for humans
+    const answer = window.prompt(
+      'Go to page (1-' + totalPages + '):',
+      String(suggestion)
+    );
+
+    if(answer === null) return lastPage; // cancelled, use last remembered page
+    const n = parseInt(answer, 10);
+    if(isNaN(n)) return lastPage;
+    return Math.max(0, Math.min(totalPages - 1, n - 1)); // clamp, back to 0-indexed
+  }
 
   async function loadComic(filename){
     filepicker.textContent = 'LOADING ' + filename + ' ...';
@@ -205,7 +238,8 @@ const COMIC_FILENAME = 'https://sunbird-sameer.github.io/3210comicviewer/comic.c
 
       filepicker.style.display = 'none';
       resizeCanvas();
-      await showPage(0);
+      const target = promptForStartPage(entries.length);
+      await showPage(target);
     }catch(err){
       filepicker.textContent = 'LOAD ERROR:\n' + err.message + '\n\nCheck that ' + filename + ' is in the same folder as this HTML file, and try serving it over http:// instead of opening it directly (file://) if the error persists.';
       console.error(err);
