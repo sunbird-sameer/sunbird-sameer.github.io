@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gutter — Panel Splitter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --ink:#1c1a17;
+    --paper:#efece4;
+    --panel-line:#1c1a17;
+    --accent:#c0361c;
+    --accent-soft:#e8d9c9;
+    --mid:#8a8377;
+    --line-w:2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family: 'Georgia', 'Iowan Old Style', serif;
+    min-height:100vh;
+  }
+  .halftone{
+    position:fixed; inset:0; pointer-events:none; opacity:.05; z-index:0;
+    background-image: radial-gradient(circle, var(--ink) 1px, transparent 1.2px);
+    background-size: 7px 7px;
+  }
+  .wrap{
+    position:relative; z-index:1;
+    max-width:900px; margin:0 auto; padding:48px 24px 80px;
+  }
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom: var(--line-w) solid var(--ink);
+    padding-bottom:14px; margin-bottom:36px;
+    flex-wrap:wrap; gap:8px;
+  }
+  h1{
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-weight:900; font-style:italic;
+    font-size:clamp(32px,6vw,52px);
+    letter-spacing:-1px;
+    margin:0; line-height:0.9;
+    transform: skew(-4deg);
+  }
+  h1 span{color:var(--accent);}
+  .tagline{
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size:13px; color:var(--mid); max-width:220px; text-align:right;
+    line-height:1.4;
+  }
+  .panel{
+    border: var(--line-w) solid var(--ink);
+    background:#fff;
+    padding:28px;
+    margin-bottom:28px;
+    position:relative;
+  }
+  .panel::before{
+    content:attr(data-tag);
+    position:absolute; top:-13px; left:20px;
+    background:var(--paper); padding:0 8px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    font-weight:700; font-size:12px; letter-spacing:0.4px;
+  }
+  .drop{
+    border: 2px dashed var(--mid);
+    padding:40px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s, background .15s;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  .drop:hover, .drop.drag{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop .big{ font-size:17px; font-weight:600; margin-bottom:6px; }
+  .drop .small{ font-size:13px; color:var(--mid); }
+  input[type=file]{ display:none; }
+  .filepill{
+    display:inline-flex; align-items:center; gap:10px;
+    margin-top:16px; padding:8px 14px;
+    border:1px solid var(--ink); font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:13px; background:var(--accent-soft);
+  }
+  .filepill button{
+    border:none; background:none; cursor:pointer; font-size:14px;
+    font-weight:700; color:var(--accent); padding:0;
+  }
+  .controls{
+    display:grid; grid-template-columns:1fr 1fr; gap:22px 28px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  .field{ display:flex; flex-direction:column; gap:8px; }
+  .field label{ font-size:13px; font-weight:600; display:flex; justify-content:space-between; }
+  .field label .val{ color:var(--accent); font-weight:700; }
+  input[type=range]{
+    -webkit-appearance:none; height:2px; background:var(--ink); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--ink); cursor:pointer;
+  }
+  .toggle-row{ display:flex; gap:0; border:1px solid var(--ink); width:fit-content; }
+  .toggle-row button{
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    border:none; background:#fff; padding:8px 16px; cursor:pointer; font-size:13px;
+    border-right:1px solid var(--ink);
+  }
+  .toggle-row button:last-child{ border-right:none; }
+  .toggle-row button.active{ background:var(--ink); color:#fff; }
+  .field-help{ font-size:11.5px; color:var(--mid); }
+
+  .runbtn{
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    font-weight:700; font-size:16px;
+    background:var(--ink); color:#fff;
+    border:none; padding:16px 20px; width:100%;
+    cursor:pointer; letter-spacing:.3px;
+    margin-top:26px;
+    transition: background .15s;
+  }
+  .runbtn:hover:not(:disabled){ background:var(--accent); }
+  .runbtn:disabled{ background:var(--mid); cursor:not-allowed; }
+
+  .progwrap{ margin-top:18px; font-family:'Helvetica Neue',Arial,sans-serif; }
+  .progbar{ height:8px; background:var(--accent-soft); border:1px solid var(--ink); overflow:hidden; }
+  .progbar > div{ height:100%; background:var(--accent); width:0%; transition: width .2s; }
+  .progtext{ font-size:12.5px; color:var(--mid); margin-top:6px; }
+
+  .stats{
+    display:flex; gap:24px; margin-bottom:18px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  .stat b{ display:block; font-size:26px; font-family:Georgia,serif; }
+  .stat span{ font-size:11.5px; color:var(--mid); text-transform:uppercase; letter-spacing:.5px; }
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:8px; max-height:420px; overflow-y:auto; padding-right:4px;
+  }
+  .grid img{
+    width:100%; aspect-ratio:2/3; object-fit:cover;
+    border:1.5px solid var(--ink); display:block; background:#ddd;
+  }
+  .grid .cell{ position:relative; }
+  .grid .cell .num{
+    position:absolute; bottom:2px; right:2px; background:var(--ink); color:#fff;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:9px; padding:1px 4px;
+  }
+
+  .dlbtn{
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    font-weight:700; font-size:16px;
+    background:var(--accent); color:#fff; border:none;
+    padding:16px 20px; width:100%; cursor:pointer; margin-top:20px;
+    text-align:center; text-decoration:none; display:block;
+  }
+  .dlbtn:hover{ background:#9c2b16; }
+
+  footer{
+    text-align:center; font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:11.5px; color:var(--mid); margin-top:40px;
+  }
+  .hidden{ display:none !important; }
+
+  @media (max-width:560px){
+    .controls{ grid-template-columns:1fr; }
+    .tagline{ text-align:left; max-width:none; }
+  }
+</style>
+</head>
+<body>
+<div class="halftone"></div>
+<div class="wrap">
+
+  <header>
+    <h1>gutter<span>.</span></h1>
+    <div class="tagline">Splits comic pages into individual panels along the blank gutters between them.</div>
+  </header>
+
+  <div class="panel" data-tag="01 — SOURCE">
+    <div class="drop" id="dropZone">
+      <div class="big">Drop a .cbz, .zip, or .pdf</div>
+      <div class="small">or click to browse — pages are processed entirely in your browser</div>
+    </div>
+    <input type="file" id="fileInput" accept=".cbz,.zip,.pdf,.cbr">
+    <div id="filePillWrap"></div>
+  </div>
+
+  <div class="panel" data-tag="02 — SETTINGS">
+    <div class="controls">
+      <div class="field">
+        <label>Gutter sensitivity <span class="val" id="sensVal">2.0%</span></label>
+        <input type="range" id="sensitivity" min="0.5" max="6" step="0.1" value="2">
+        <div class="field-help">Lower = detects even faint gutters (may over-split). Higher = needs wide clean gutters.</div>
+      </div>
+      <div class="field">
+        <label>Minimum panel size <span class="val" id="minSizeVal">5%</span></label>
+        <input type="range" id="minSize" min="2" max="20" step="1" value="5">
+        <div class="field-help">Panels smaller than this % of the page dimension are discarded/merged.</div>
+      </div>
+      <div class="field">
+        <label>Reading direction</label>
+        <div class="toggle-row" id="dirToggle">
+          <button data-v="ltr" class="active">Left → Right</button>
+          <button data-v="rtl">Right → Left (manga)</button>
+        </div>
+        <div class="field-help">Controls left/right ordering of panels within a row.</div>
+      </div>
+      <div class="field">
+        <label>Output quality <span class="val" id="qualVal">92%</span></label>
+        <input type="range" id="quality" min="60" max="100" step="1" value="92">
+        <div class="field-help">JPEG quality for cropped panel images.</div>
+      </div>
+    </div>
+
+    <button class="runbtn" id="runBtn" disabled>Load a file first</button>
+    <div class="progwrap hidden" id="progWrap">
+      <div class="progbar"><div id="progFill"></div></div>
+      <div class="progtext" id="progText">Starting…</div>
+    </div>
+  </div>
+
+  <div class="panel hidden" data-tag="03 — RESULT" id="resultPanel">
+    <div class="stats">
+      <div class="stat"><b id="statPages">0</b><span>pages read</span></div>
+      <div class="stat"><b id="statPanels">0</b><span>panels found</span></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <a class="dlbtn" id="dlBtn" download="panels.cbz">Download panels.cbz</a>
+  </div>
+
+  <footer>Panel edges are detected by scanning for blank gutters between artwork — works best on comics with clear white/black gutters. Borderless or painterly layouts may split unevenly.</footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const filePillWrap = document.getElementById('filePillWrap');
+const runBtn = document.getElementById('runBtn');
+const progWrap = document.getElementById('progWrap');
+const progFill = document.getElementById('progFill');
+const progText = document.getElementById('progText');
+const resultPanel = document.getElementById('resultPanel');
+const grid = document.getElementById('grid');
+const dlBtn = document.getElementById('dlBtn');
+const sensSlider = document.getElementById('sensitivity');
+const sensVal = document.getElementById('sensVal');
+const minSizeSlider = document.getElementById('minSize');
+const minSizeVal = document.getElementById('minSizeVal');
+const qualSlider = document.getElementById('quality');
+const qualVal = document.getElementById('qualVal');
+const dirToggle = document.getElementById('dirToggle');
+
+let currentFile = null;
+let readingDir = 'ltr';
+
+sensSlider.addEventListener('input', () => sensVal.textContent = parseFloat(sensSlider.value).toFixed(1) + '%');
+minSizeSlider.addEventListener('input', () => minSizeVal.textContent = minSizeSlider.value + '%');
+qualSlider.addEventListener('input', () => qualVal.textContent = qualSlider.value + '%');
+dirToggle.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  [...dirToggle.children].forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  readingDir = btn.dataset.v;
+});
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if(e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if(e.target.files.length) setFile(e.target.files[0]); });
+
+function setFile(f){
+  currentFile = f;
+  filePillWrap.innerHTML = '';
+  const pill = document.createElement('div');
+  pill.className = 'filepill';
+  pill.innerHTML = `<span>${f.name}</span> <button type="button">✕</button>`;
+  pill.querySelector('button').addEventListener('click', (e) => {
+    e.stopPropagation();
+    currentFile = null;
+    filePillWrap.innerHTML = '';
+    runBtn.disabled = true;
+    runBtn.textContent = 'Load a file first';
+    resultPanel.classList.add('hidden');
+  });
+  filePillWrap.appendChild(pill);
+  runBtn.disabled = false;
+  runBtn.textContent = 'Split panels';
+}
+
+function setProgress(pct, text){
+  progWrap.classList.remove('hidden');
+  progFill.style.width = pct + '%';
+  progText.textContent = text;
+}
+
+function naturalSort(a,b){
+  return a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'});
+}
+
+// ---------- Input loading: returns array of {bitmap, width, height} in page order ----------
+
+async function loadPagesFromCBZ(file){
+  const zip = await JSZip.loadAsync(file);
+  const imgExts = /\.(png|jpe?g|webp|gif|bmp)$/i;
+  const entries = Object.values(zip.files)
+    .filter(f => !f.dir && imgExts.test(f.name))
+    .sort((a,b) => naturalSort(a.name, b.name));
+  const pages = [];
+  for(const entry of entries){
+    const blob = await entry.async('blob');
+    const bitmap = await createImageBitmap(blob);
+    pages.push({ name: entry.name, bitmap, width: bitmap.width, height: bitmap.height });
+  }
+  return pages;
+}
+
+async function loadPagesFromPDF(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2.2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const bitmap = await createImageBitmap(canvas);
+    pages.push({ name: `page_${i}`, bitmap, width: bitmap.width, height: bitmap.height });
+  }
+  return pages;
+}
+
+// ---------- Panel detection ----------
+
+function buildInkGrid(bitmap, maxDim){
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  const data = ctx.getImageData(0,0,w,h).data;
+  // 1 = ink (non-white/non-background), 0 = blank
+  const ink = new Uint8Array(w*h);
+  for(let i=0, p=0; i<data.length; i+=4, p++){
+    const lum = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    ink[p] = lum < 238 ? 1 : 0;
+  }
+  return { ink, w, h, scaleBack: 1/scale };
+}
+
+// integral-image style row/col sums for fast ratio queries within an arbitrary rect
+function rowInkRatio(ink, gridW, x0, x1, y){
+  let count = 0;
+  const base = y*gridW;
+  for(let x=x0;x<x1;x++) count += ink[base+x];
+  return count / (x1-x0);
+}
+function colInkRatio(ink, gridW, y0, y1, x){
+  let count = 0;
+  for(let y=y0;y<y1;y++) count += ink[y*gridW+x];
+  return count / (y1-y0);
+}
+
+function findSegments(length, ratioFn, maxInkRatio, minGutter, minSeg){
+  // scan for blank runs (gutters) >= minGutter, segments are the gaps between them
+  const blanks = new Uint8Array(length);
+  for(let i=0;i<length;i++) blanks[i] = ratioFn(i) <= maxInkRatio ? 1 : 0;
+  const gutters = [];
+  let inGutter=false, start=0;
+  for(let i=0;i<length;i++){
+    if(blanks[i] && !inGutter){ inGutter=true; start=i; }
+    if(!blanks[i] && inGutter){
+      inGutter=false;
+      if(i-start >= minGutter) gutters.push([start,i]);
+    }
+  }
+  if(inGutter && length-start >= minGutter) gutters.push([start,length]);
+
+  const segments = [];
+  let cursor = 0;
+  for(const [gs,ge] of gutters){
+    if(gs - cursor >= minSeg) segments.push([cursor, gs]);
+    cursor = ge;
+  }
+  if(length - cursor >= minSeg) segments.push([cursor, length]);
+  return segments;
+}
+
+function segmentRegion(ink, gridW, gridH, rect, axis, failCount, depth, opts){
+  const { maxInkRatio, minGutter, minSeg, maxDepth } = opts;
+  if(depth > maxDepth || failCount >= 2 || rect.w < minSeg || rect.h < minSeg){
+    return [rect];
+  }
+  let segs;
+  if(axis === 'row'){
+    segs = findSegments(rect.h, (i) => rowInkRatio(ink, gridW, rect.x, rect.x+rect.w, rect.y+i), maxInkRatio, minGutter, minSeg);
+  } else {
+    segs = findSegments(rect.w, (i) => colInkRatio(ink, gridW, rect.y, rect.y+rect.h, rect.x+i), maxInkRatio, minGutter, minSeg);
+  }
+  const nextAxis = axis === 'row' ? 'col' : 'row';
+  if(segs.length <= 1){
+    return segmentRegion(ink, gridW, gridH, rect, nextAxis, failCount+1, depth+1, opts);
+  }
+  let results = [];
+  for(const [s,e] of segs){
+    const subRect = axis === 'row'
+      ? { x: rect.x, y: rect.y+s, w: rect.w, h: e-s }
+      : { x: rect.x+s, y: rect.y, w: e-s, h: rect.h };
+    results = results.concat(segmentRegion(ink, gridW, gridH, subRect, nextAxis, 0, depth+1, opts));
+  }
+  return results;
+}
+
+function orderPanels(rects, direction){
+  // group into rows by y-overlap, then order left-right or right-left within row
+  const sorted = [...rects].sort((a,b) => a.y - b.y);
+  const rows = [];
+  for(const r of sorted){
+    let placed = false;
+    for(const row of rows){
+      const overlap = Math.min(row.yEnd, r.y+r.h) - Math.max(row.yStart, r.y);
+      const minH = Math.min(row.yEnd-row.yStart, r.h);
+      if(overlap > minH*0.4){
+        row.items.push(r);
+        row.yStart = Math.min(row.yStart, r.y);
+        row.yEnd = Math.max(row.yEnd, r.y+r.h);
+        placed = true;
+        break;
+      }
+    }
+    if(!placed) rows.push({ yStart: r.y, yEnd: r.y+r.h, items: [r] });
+  }
+  rows.sort((a,b) => a.yStart - b.yStart);
+  const out = [];
+  for(const row of rows){
+    row.items.sort((a,b) => direction === 'rtl' ? b.x - a.x : a.x - b.x);
+    out.push(...row.items);
+  }
+  return out;
+}
+
+function detectPanelsForPage(bitmap, sensitivityPct, minSizePct){
+  const DETECT_MAX_DIM = 900;
+  const { ink, w, h, scaleBack } = buildInkGrid(bitmap, DETECT_MAX_DIM);
+  const maxInkRatio = sensitivityPct / 100;
+  const minGutter = Math.max(3, Math.round(Math.min(w,h) * 0.008));
+  const minSeg = Math.max(16, Math.round(Math.min(w,h) * (minSizePct/100)));
+
+  const rects = segmentRegion(ink, w, h, { x:0, y:0, w, h }, 'row', 0, 0, {
+    maxInkRatio, minGutter, minSeg, maxDepth: 8
+  });
+
+  // filter degenerate rects & scale back to full resolution
+  const full = rects
+    .filter(r => r.w >= minSeg*0.6 && r.h >= minSeg*0.6)
+    .map(r => ({
+      x: Math.max(0, Math.round(r.x*scaleBack)),
+      y: Math.max(0, Math.round(r.y*scaleBack)),
+      w: Math.round(r.w*scaleBack),
+      h: Math.round(r.h*scaleBack)
+    }));
+
+  if(full.length === 0){
+    return [{ x:0, y:0, w: bitmap.width, h: bitmap.height }];
+  }
+  return orderPanels(full, readingDir);
+}
+
+function cropPanel(bitmap, rect, quality){
+  const canvas = document.createElement('canvas');
+  canvas.width = rect.w; canvas.height = rect.h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+  return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/jpeg', quality));
+}
+
+// ---------- Main pipeline ----------
+
+runBtn.addEventListener('click', async () => {
+  if(!currentFile) return;
+  runBtn.disabled = true;
+  resultPanel.classList.add('hidden');
+  grid.innerHTML = '';
+  setProgress(2, 'Reading file…');
+
+  try{
+    const isPdf = /\.pdf$/i.test(currentFile.name);
+    let pages;
+    if(isPdf){
+      pages = await loadPagesFromPDF(currentFile);
+    } else {
+      pages = await loadPagesFromCBZ(currentFile);
+    }
+    if(pages.length === 0){
+      setProgress(0, 'No pages/images found in that file.');
+      runBtn.disabled = false;
+      return;
+    }
+
+    const sensitivity = parseFloat(sensSlider.value);
+    const minSizePct = parseFloat(minSizeSlider.value);
+    const quality = parseInt(qualSlider.value,10)/100;
+
+    const outZip = new JSZip();
+    let panelCount = 0;
+    const padPages = String(pages.length).length;
+
+    for(let p=0; p<pages.length; p++){
+      const page = pages[p];
+      setProgress(5 + (p/pages.length)*85, `Analyzing page ${p+1} of ${pages.length}…`);
+      await new Promise(r => setTimeout(r, 0)); // let UI paint
+
+      const rects = detectPanelsForPage(page.bitmap, sensitivity, minSizePct);
+      const padPanels = String(rects.length).length;
+
+      for(let i=0;i<rects.length;i++){
+        const blob = await cropPanel(page.bitmap, rects[i], quality);
+        const fname = `page${String(p+1).padStart(padPages,'0')}_panel${String(i+1).padStart(Math.max(padPanels,2),'0')}.jpg`;
+        outZip.file(fname, blob);
+        panelCount++;
+
+        if(panelCount <= 60){
+          const url = URL.createObjectURL(blob);
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.innerHTML = `<img src="${url}"><span class="num">${p+1}.${i+1}</span>`;
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    setProgress(95, 'Packing CBZ…');
+    const outBlob = await outZip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{ level:6 } });
+    const url = URL.createObjectURL(outBlob);
+    dlBtn.href = url;
+
+    const baseName = currentFile.name.replace(/\.[^.]+$/,'');
+    dlBtn.download = `${baseName}_panels.cbz`;
+
+    document.getElementById('statPages').textContent = pages.length;
+    document.getElementById('statPanels').textContent = panelCount;
+    resultPanel.classList.remove('hidden');
+    setProgress(100, `Done — ${panelCount} panels from ${pages.length} pages.`);
+    runBtn.disabled = false;
+    runBtn.textContent = 'Split panels again';
+  } catch(err){
+    console.error(err);
+    setProgress(0, 'Error: ' + err.message);
+    runBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
