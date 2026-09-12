@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gimbal Star Waypoint Calculator</title>
+<style>
+  :root {
+    --bg: #0b0d14;
+    --panel: #141824;
+    --border: #262b3b;
+    --text: #e6e8ef;
+    --muted: #8891a8;
+    --accent: #6ea8fe;
+    --accent2: #f5c451;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 20px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  p.sub {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+  label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%;
+    background: #0e1119;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+  }
+  .row > div { flex: 1; }
+  button {
+    width: 100%;
+    background: var(--accent);
+    color: #0b0d14;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-top: 16px;
+    cursor: pointer;
+  }
+  button:active { opacity: 0.85; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    margin-top: 8px;
+    font-weight: 500;
+  }
+  .results { margin-top: 16px; }
+  .wp-card {
+    background: #0e1119;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .wp-title {
+    font-size: 0.8rem;
+    color: var(--accent2);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .wp-time {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .wp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat {
+    background: #141824;
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .stat-label {
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .stat-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .offset-value {
+    color: var(--accent);
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin-top: 10px;
+    display: none;
+  }
+  .note {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+  .loc-status {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Gimbal Star Waypoint Calculator</h1>
+<p class="sub">Point your gimbal wherever you want, note the az/alt from a compass/level app and the time, enter your location — this projects that fixed sky point forward and gives you pan/tilt offsets for each waypoint. No camera, no star lookup needed.</p>
+
+<div class="panel">
+  <label>Observer latitude (deg, + = N)</label>
+  <div class="row">
+    <div><input type="number" id="lat" step="0.0001" value="40.7128"></div>
+    <div><input type="number" id="lon" step="0.0001" value="-74.0060" placeholder="Longitude (+ = E)"></div>
+  </div>
+  <button class="secondary" id="geoBtn" type="button">Use my current location</button>
+  <div class="loc-status" id="locStatus"></div>
+
+  <label>Start time (when you noted the coordinates below)</label>
+  <input type="datetime-local" id="startTime">
+
+  <label>Starting azimuth (deg, 0-360, from compass)</label>
+  <input type="number" id="startAz" step="0.01" value="0" placeholder="e.g. 0 = North, 90 = East">
+
+  <label>Starting altitude (deg, 0-90, from level/inclinometer)</label>
+  <input type="number" id="startAlt" step="0.01" value="45" placeholder="0 = horizon, 90 = straight up">
+
+  <label>Duration (hours)</label>
+  <input type="number" id="duration" step="0.1" value="2" min="0.1">
+
+  <label>Number of waypoints (incl. start &amp; end)</label>
+  <input type="number" id="numWp" step="1" value="4" min="2" max="20">
+
+  <button id="calcBtn" type="button">Calculate Waypoints</button>
+  <div class="error" id="errorMsg"></div>
+</div>
+
+<div class="results" id="results"></div>
+
+<div class="note" id="note" style="display:none">
+  Pan offset = azimuth change from waypoint 0 (+ = move right/clockwise). Tilt offset = altitude change from waypoint 0 (+ = move up).
+  Az/Alt rates are not linear over long spans, especially near the horizon or celestial pole — if consecutive tilt/pan jumps look large, increase the number of waypoints rather than trusting interpolation between two widely spaced points.
+</div>
+
+<script>
+function toRad(d) { return d * Math.PI / 180; }
+function toDeg(r) { return r * 180 / Math.PI; }
+
+// Julian Date from a JS Date (UTC)
+function julianDate(date) {
+  return date.getTime() / 86400000 + 2440587.5;
+}
+
+// Greenwich Mean Sidereal Time (degrees), standard formula
+function gmstDeg(jd) {
+  const T = (jd - 2451545.0) / 36525.0;
+  let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
+             + 0.000387933 * T * T - (T * T * T) / 38710000.0;
+  gmst = gmst % 360;
+  if (gmst < 0) gmst += 360;
+  return gmst;
+}
+
+// Convert RA/Dec (deg) + observer lat/lon (deg) + time (Date, UTC) -> {az, alt} in degrees
+function raDecToAltAz(raDeg, decDeg, latDeg, lonDeg, date) {
+  const jd = julianDate(date);
+  const gmst = gmstDeg(jd);
+  let lst = gmst + lonDeg; // local sidereal time in degrees
+  lst = ((lst % 360) + 360) % 360;
+
+  let ha = lst - raDeg; // hour angle in degrees
+  ha = ((ha + 180) % 360 + 360) % 360 - 180;
+
+  const haR = toRad(ha);
+  const decR = toRad(decDeg);
+  const latR = toRad(latDeg);
+
+  const sinAlt = Math.sin(decR) * Math.sin(latR) + Math.cos(decR) * Math.cos(latR) * Math.cos(haR);
+  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+
+  const cosAz = (Math.sin(decR) - Math.sin(alt) * Math.sin(latR)) / (Math.cos(alt) * Math.cos(latR));
+  let az = Math.acos(Math.max(-1, Math.min(1, cosAz)));
+  az = toDeg(az);
+
+  // Determine az quadrant using sign of sin(HA)
+  if (Math.sin(haR) > 0) {
+    az = 360 - az;
+  }
+
+  return { az: az, alt: toDeg(alt) };
+}
+
+// Convert Az/Alt (deg) + observer lat/lon (deg) + time (Date, UTC) -> {ra, dec} in degrees
+function altAzToRaDec(azDeg, altDeg, latDeg, lonDeg, date) {
+  const jd = julianDate(date);
+  const gmst = gmstDeg(jd);
+  let lst = gmst + lonDeg;
+  lst = ((lst % 360) + 360) % 360;
+
+  const azR = toRad(azDeg);
+  const altR = toRad(altDeg);
+  const latR = toRad(latDeg);
+
+  const sinDec = Math.sin(altR) * Math.sin(latR) + Math.cos(altR) * Math.cos(latR) * Math.cos(azR);
+  const dec = Math.asin(Math.max(-1, Math.min(1, sinDec)));
+
+  const cosHa = (Math.sin(altR) - Math.sin(dec) * Math.sin(latR)) / (Math.cos(dec) * Math.cos(latR));
+  let ha = Math.acos(Math.max(-1, Math.min(1, cosHa)));
+  ha = toDeg(ha);
+
+  // Matches forward formula's convention: HA>0 (west of meridian) corresponds
+  // to sin(Az) < 0 there, so acos's positive result is negated when sin(Az) >= 0.
+  if (Math.sin(azR) >= 0) {
+    ha = -ha;
+  }
+
+  let ra = lst - ha;
+  ra = ((ra % 360) + 360) % 360;
+
+  return { ra: ra, dec: toDeg(dec) };
+}
+
+function fmtTime(date) {
+  return date.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+document.getElementById('geoBtn').addEventListener('click', function() {
+  const status = document.getElementById('locStatus');
+  if (!navigator.geolocation) {
+    status.textContent = 'Geolocation not supported in this browser.';
+    return;
+  }
+  status.textContent = 'Locating...';
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    document.getElementById('lat').value = pos.coords.latitude.toFixed(4);
+    document.getElementById('lon').value = pos.coords.longitude.toFixed(4);
+    status.textContent = 'Location set from device GPS.';
+  }, function(err) {
+    status.textContent = 'Could not get location: ' + err.message;
+  });
+});
+
+// default start time = now, rounded to nearest minute, in local input format
+(function initTime() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const local = new Date(now.getTime() - tzOffset);
+  document.getElementById('startTime').value = local.toISOString().slice(0, 16);
+})();
+
+document.getElementById('calcBtn').addEventListener('click', function() {
+  const errorEl = document.getElementById('errorMsg');
+  const resultsEl = document.getElementById('results');
+  const noteEl = document.getElementById('note');
+  errorEl.style.display = 'none';
+  resultsEl.innerHTML = '';
+
+  const lat = parseFloat(document.getElementById('lat').value);
+  const lon = parseFloat(document.getElementById('lon').value);
+  const startAz = parseFloat(document.getElementById('startAz').value);
+  const startAlt = parseFloat(document.getElementById('startAlt').value);
+  const startStr = document.getElementById('startTime').value;
+  const duration = parseFloat(document.getElementById('duration').value);
+  const numWp = parseInt(document.getElementById('numWp').value, 10);
+
+  if ([lat, lon, startAz, startAlt, duration, numWp].some(isNaN) || !startStr) {
+    errorEl.textContent = 'Please fill in all fields with valid numbers.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (numWp < 2) {
+    errorEl.textContent = 'Number of waypoints must be at least 2.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (startAlt < 0 || startAlt > 90) {
+    errorEl.textContent = 'Starting altitude must be between 0 and 90 degrees.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const startTime = new Date(startStr); // interpreted in browser's local timezone
+
+  // Step 1: figure out what fixed point on the sky your starting az/alt
+  // corresponds to, at the moment you noted it.
+  const targetRaDec = altAzToRaDec(startAz, startAlt, lat, lon, startTime);
+
+  // Step 2: project that fixed point forward to each waypoint time.
+  const waypoints = [];
+  for (let i = 0; i < numWp; i++) {
+    const hoursOffset = (duration * i) / (numWp - 1);
+    const t = new Date(startTime.getTime() + hoursOffset * 3600000);
+    const pos = raDecToAltAz(targetRaDec.ra, targetRaDec.dec, lat, lon, t);
+    waypoints.push({ time: t, az: pos.az, alt: pos.alt });
+  }
+
+  const az0 = waypoints[0].az;
+  const alt0 = waypoints[0].alt;
+
+  waypoints.forEach(function(wp, i) {
+    let panOffset = ((wp.az - az0 + 180) % 360 + 360) % 360 - 180;
+    let tiltOffset = wp.alt - alt0;
+
+    const card = document.createElement('div');
+    card.className = 'wp-card';
+    card.innerHTML =
+      '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + '</div>' +
+      '<div class="wp-time">' + fmtTime(wp.time) + '</div>' +
+      '<div class="wp-grid">' +
+        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(2) + '&deg;</div></div>' +
+      '</div>';
+    resultsEl.appendChild(card);
+  });
+
+  noteEl.style.display = 'block';
+});
+</script>
+
+</body>
+</html>
