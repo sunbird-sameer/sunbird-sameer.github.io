@@ -220,6 +220,7 @@
 let latestHeading = null;
 let latestAlt = null;
 let meterActive = false;
+let refBeta = null; // beta value at meter start, treated as the horizon (altitude 0) reference
 
 // Proper tilt-compensated compass heading (W3C reference algorithm).
 // Combines alpha/beta/gamma together instead of just using alpha, so the
@@ -327,7 +328,14 @@ function handleOrientation(event) {
     document.getElementById('liveAzRaw').textContent = 'predicted: ' + predicted.toFixed(1) + '\u00b0';
   }
   if (typeof event.beta === 'number') {
-    latestAlt = 90 - event.beta;
+    if (refBeta === null) {
+      // First reading after starting the meter: assume the phone was held
+      // vertically pointing at the horizon at this moment, and treat this
+      // beta as the altitude-0 reference. All later readings are relative
+      // to it, so absolute mounting angle/orientation doesn't matter.
+      refBeta = event.beta;
+    }
+    latestAlt = event.beta - refBeta;
     document.getElementById('liveAlt').textContent = latestAlt.toFixed(1) + '\u00b0';
   }
 }
@@ -349,13 +357,14 @@ document.getElementById('meterBtn').addEventListener('click', function() {
   function startListening() {
     smoothedVec = null;
     pendingJump = null;
+    refBeta = null;
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     window.addEventListener('deviceorientation', handleOrientation, true);
     meterActive = true;
     document.getElementById('meterDisplay').style.display = 'grid';
     document.getElementById('useReadingBtn').style.display = 'block';
     document.getElementById('meterBtn').textContent = 'Stop meter';
-    statusEl.textContent = '';
+    statusEl.textContent = 'Hold phone vertical, pointed at horizon, then keep still for a moment.';
   }
 
   if (!window.DeviceOrientationEvent) {
