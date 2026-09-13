@@ -253,6 +253,56 @@ function computeTiltCompensatedHeading(alpha, beta, gamma) {
   return heading * (180 / Math.PI);
 }
 
+// Smooths jitter and rejects sudden implausible jumps (usually caused by
+// the alpha/beta/gamma representation briefly flipping branches when the
+// phone rolls sideways). Works on the unit circle so it handles 359->1 deg
+// wraparound correctly, unlike averaging raw degree values.
+let smoothedVec = null;       // {x, y} unit vector representing smoothed heading
+let pendingJump = null;       // {heading, count} - candidate for a real (not glitch) big move
+const SMOOTHING = 0.25;       // 0 = no smoothing/instant, 1 = frozen
+const JUMP_THRESHOLD_DEG = 60;
+const JUMP_CONFIRM_FRAMES = 3;
+
+function smoothHeading(rawHeadingDeg) {
+  const rad = rawHeadingDeg * Math.PI / 180;
+  const vec = { x: Math.cos(rad), y: Math.sin(rad) };
+
+  if (smoothedVec === null) {
+    smoothedVec = vec;
+    return rawHeadingDeg;
+  }
+
+  const currentDeg = Math.atan2(smoothedVec.y, smoothedVec.x) * 180 / Math.PI;
+  let diff = rawHeadingDeg - currentDeg;
+  diff = ((diff + 180) % 360 + 360) % 360 - 180; // shortest angular distance
+
+  if (Math.abs(diff) > JUMP_THRESHOLD_DEG) {
+    // Could be a real fast move, or a branch-flip glitch. Only accept it
+    // once the same large jump shows up on consecutive frames.
+    if (pendingJump && Math.abs(((rawHeadingDeg - pendingJump.heading + 180) % 360 + 360) % 360 - 180) < 15) {
+      pendingJump.count++;
+    } else {
+      pendingJump = { heading: rawHeadingDeg, count: 1 };
+    }
+    if (pendingJump.count < JUMP_CONFIRM_FRAMES) {
+      // Ignore this sample, keep showing the last stable smoothed heading.
+      return ((currentDeg % 360) + 360) % 360;
+    }
+    // Confirmed real move -- snap to it directly instead of slow-blending.
+    smoothedVec = vec;
+    pendingJump = null;
+    return rawHeadingDeg;
+  }
+
+  pendingJump = null;
+  smoothedVec = {
+    x: smoothedVec.x * SMOOTHING + vec.x * (1 - SMOOTHING),
+    y: smoothedVec.y * SMOOTHING + vec.y * (1 - SMOOTHING)
+  };
+  const smoothedDeg = Math.atan2(smoothedVec.y, smoothedVec.x) * 180 / Math.PI;
+  return ((smoothedDeg % 360) + 360) % 360;
+}
+
 function handleOrientation(event) {
   let corrected = null;
   let predicted = null;
@@ -269,7 +319,8 @@ function handleOrientation(event) {
   }
 
   if (corrected !== null) {
-    latestHeading = ((corrected % 360) + 360) % 360;
+    const smoothed = smoothHeading(corrected);
+    latestHeading = smoothed;
     document.getElementById('liveAz').textContent = latestHeading.toFixed(1) + '\u00b0';
   }
   if (predicted !== null) {
@@ -296,6 +347,8 @@ document.getElementById('meterBtn').addEventListener('click', function() {
   }
 
   function startListening() {
+    smoothedVec = null;
+    pendingJump = null;
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     window.addEventListener('deviceorientation', handleOrientation, true);
     meterActive = true;
