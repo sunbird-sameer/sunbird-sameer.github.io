@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gimbal Star Waypoint Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Star Waypoints</title>
 <style>
   :root {
     --bg: #0b0d14;
@@ -20,37 +20,31 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     margin: 0;
-    padding: 20px;
-    max-width: 640px;
+    padding: 14px;
+    max-width: 480px;
     margin: 0 auto;
   }
   h1 {
-    font-size: 1.25rem;
+    font-size: 1.05rem;
     font-weight: 600;
-    margin-bottom: 4px;
-  }
-  p.sub {
-    color: var(--muted);
-    font-size: 0.88rem;
-    margin-top: 0;
-    margin-bottom: 20px;
+    margin: 4px 0 12px;
   }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
   }
   label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--muted);
     margin-bottom: 4px;
-    margin-top: 12px;
+    margin-top: 10px;
   }
   label:first-child { margin-top: 0; }
-  input, select {
+  input {
     width: 100%;
     background: #0e1119;
     border: 1px solid var(--border);
@@ -59,14 +53,8 @@
     padding: 10px 12px;
     font-size: 0.95rem;
   }
-  input:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-  .row {
-    display: flex;
-    gap: 10px;
-  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
   .row > div { flex: 1; }
   button {
     width: 100%;
@@ -75,185 +63,170 @@
     border: none;
     border-radius: 8px;
     padding: 12px;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 600;
-    margin-top: 16px;
+    margin-top: 10px;
     cursor: pointer;
   }
-  button:active { opacity: 0.85; }
   button.secondary {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
-    margin-top: 8px;
     font-weight: 500;
   }
-  .results { margin-top: 16px; }
-  .wp-card {
-    background: #0e1119;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-  }
-  .wp-title {
-    font-size: 0.8rem;
-    color: var(--accent2);
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-  .wp-time {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  .wp-grid {
+  .live-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    margin-top: 10px;
   }
-  .stat {
-    background: #141824;
-    border-radius: 6px;
-    padding: 8px 10px;
+  .live-stat {
+    background: #0e1119;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
   }
-  .stat-label {
-    font-size: 0.68rem;
+  .live-label {
+    font-size: 0.65rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-  .stat-value {
-    font-size: 1.05rem;
-    font-weight: 600;
+  .live-value {
+    font-size: 1.3rem;
+    font-weight: 700;
     margin-top: 2px;
   }
-  .offset-value {
-    color: var(--accent);
-  }
-  .error {
-    color: #ff6b6b;
-    font-size: 0.85rem;
-    margin-top: 10px;
-    display: none;
-  }
-  .note {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-top: 14px;
-    line-height: 1.5;
-  }
-  .loc-status {
-    font-size: 0.78rem;
+  .status {
+    font-size: 0.72rem;
     color: var(--muted);
     margin-top: 6px;
+    min-height: 1.2em;
+  }
+  .results { margin-top: 12px; }
+  .wp-card {
+    background: #0e1119;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .wp-title {
+    font-size: 0.75rem;
+    color: var(--accent2);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .wp-time {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .wp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat {
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 6px 8px;
+  }
+  .stat-label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .stat-value {
+    font-size: 0.98rem;
+    font-weight: 600;
+  }
+  .offset-value { color: var(--accent); }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin-top: 8px;
+    display: none;
   }
 </style>
 </head>
 <body>
 
-<h1>Gimbal Star Waypoint Calculator</h1>
-<p class="sub">Point your gimbal wherever you want, note the az/alt from a compass/level app and the time, enter your location — this projects that fixed sky point forward and gives you pan/tilt offsets for each waypoint. No camera, no star lookup needed.</p>
+<h1>Star Waypoints</h1>
 
 <div class="panel">
-  <label style="margin-top:0">Live Az/Alt meter (uses your phone's compass &amp; tilt sensors)</label>
-  <button class="secondary" id="meterBtn" type="button">Start meter</button>
-  <div id="meterStatus" class="loc-status"></div>
-
-  <div id="meterDisplay" style="display:none; margin-top:12px;">
-    <div class="wp-grid">
-      <div class="stat">
-        <div class="stat-label">Azimuth (live)</div>
-        <div class="stat-value" id="liveAz">--</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Altitude / tilt (live)</div>
-        <div class="stat-value" id="liveAlt">--</div>
-      </div>
+  <button class="secondary" id="meterBtn" type="button">Start live Az/Alt meter</button>
+  <div class="live-grid" id="meterDisplay" style="display:none">
+    <div class="live-stat">
+      <div class="live-label">Azimuth</div>
+      <div class="live-value" id="liveAz">--</div>
     </div>
-    <button id="useReadingBtn" type="button">Use this reading as starting Az/Alt</button>
-    <div class="note" style="margin-top:10px;">
-      This uses your phone's own magnetometer + accelerometer, so it's subject to the same
-      nearby-magnet interference (e.g. clamp magnets) as any compass app. Altitude reads 0&deg;
-      at the horizon assuming the phone's top edge points at the target; if your mount holds
-      the phone in a different orientation, this number won't line up and should be treated
-      as relative, not absolute.
+    <div class="live-stat">
+      <div class="live-label">Altitude</div>
+      <div class="live-value" id="liveAlt">--</div>
     </div>
   </div>
+  <button id="useReadingBtn" type="button" style="display:none">Use as starting Az/Alt</button>
+  <div class="status" id="meterStatus"></div>
 </div>
 
 <div class="panel">
-  <label style="margin-top:0">Location &amp; target waypoints</label>
-  <label>Observer latitude / longitude (deg, + = N/E)</label>
+  <label style="margin-top:0">Latitude / Longitude</label>
   <div class="row">
     <div><input type="number" id="lat" step="0.0001" value="40.7128"></div>
-    <div><input type="number" id="lon" step="0.0001" value="-74.0060" placeholder="Longitude (+ = E)"></div>
+    <div><input type="number" id="lon" step="0.0001" value="-74.0060"></div>
   </div>
-  <button class="secondary" id="geoBtn" type="button">Use my current location</button>
-  <div class="loc-status" id="locStatus"></div>
+  <button class="secondary" id="geoBtn" type="button">Use my location</button>
 
-  <label>Start time (when you noted the coordinates below)</label>
+  <label>Start time</label>
   <input type="datetime-local" id="startTime">
 
-  <label>Starting azimuth (deg, whole number, from AzAlt app)</label>
-  <input type="number" id="startAz" step="1" value="0" placeholder="e.g. 0 = North, 90 = East">
+  <div class="row">
+    <div>
+      <label>Start azimuth (deg)</label>
+      <input type="number" id="startAz" step="1" value="0">
+    </div>
+    <div>
+      <label>Start altitude (deg)</label>
+      <input type="number" id="startAlt" step="1" value="45">
+    </div>
+  </div>
 
-  <label>Starting altitude (deg, whole number, from AzAlt app)</label>
-  <input type="number" id="startAlt" step="1" value="45" placeholder="0 = horizon, 90 = straight up">
+  <div class="row">
+    <div>
+      <label>Duration (hrs)</label>
+      <input type="number" id="duration" step="0.1" value="2" min="0.1">
+    </div>
+    <div>
+      <label>Waypoints</label>
+      <input type="number" id="numWp" step="1" value="4" min="2" max="20">
+    </div>
+  </div>
 
-  <label>Duration (hours)</label>
-  <input type="number" id="duration" step="0.1" value="2" min="0.1">
-
-  <label>Number of waypoints (incl. start &amp; end)</label>
-  <input type="number" id="numWp" step="1" value="4" min="2" max="20">
-
-  <button id="calcBtn" type="button">Calculate Waypoints</button>
+  <button id="calcBtn" type="button">Calculate</button>
   <div class="error" id="errorMsg"></div>
 </div>
 
 <div class="results" id="results"></div>
 
-<div class="note" id="note" style="display:none">
-  Pan offset = azimuth change from waypoint 0 (+ = move right/clockwise). Tilt offset = altitude change from waypoint 0 (+ = move up).
-  Az/Alt rates are not linear over long spans, especially near the horizon or celestial pole — if consecutive tilt/pan jumps look large, increase the number of waypoints rather than trusting interpolation between two widely spaced points.
-</div>
-
 <script>
-// ============ Live Az/Alt meter using device sensors ============
+let latestHeading = null;
+let latestAlt = null;
 let meterActive = false;
-let latestHeading = null;   // degrees, 0 = North, clockwise
-let latestAlt = null;       // degrees, 0 = horizon, 90 = straight up (phone pointing up)
 
 function handleOrientation(event) {
   let heading = null;
-
-  // iOS Safari: webkitCompassHeading is already 0=N, clockwise, and doesn't
-  // need the 360-alpha flip that plain 'alpha' does on other platforms.
   if (typeof event.webkitCompassHeading === 'number') {
     heading = event.webkitCompassHeading;
-  } else if (event.absolute && typeof event.alpha === 'number') {
-    heading = 360 - event.alpha;
   } else if (typeof event.alpha === 'number') {
-    heading = 360 - event.alpha; // best effort; may drift without 'absolute'
+    heading = 360 - event.alpha;
   }
-
   if (heading !== null) {
-    heading = ((heading % 360) + 360) % 360;
-    latestHeading = heading;
-  }
-
-  // beta = front-back tilt (-180 to 180), used here as altitude when phone
-  // is held with its top edge pointing at the target (typical gimbal mount).
-  // 90 = phone vertical (pointing at horizon), we convert so 0 = horizon,
-  // 90 = straight up, matching the rest of this app's altitude convention.
-  if (typeof event.beta === 'number') {
-    latestAlt = 90 - event.beta;
-  }
-
-  if (latestHeading !== null) {
+    latestHeading = ((heading % 360) + 360) % 360;
     document.getElementById('liveAz').textContent = latestHeading.toFixed(1) + '\u00b0';
   }
-  if (latestAlt !== null) {
+  if (typeof event.beta === 'number') {
+    latestAlt = 90 - event.beta;
     document.getElementById('liveAlt').textContent = latestAlt.toFixed(1) + '\u00b0';
   }
 }
@@ -262,72 +235,60 @@ document.getElementById('meterBtn').addEventListener('click', function() {
   const statusEl = document.getElementById('meterStatus');
 
   if (meterActive) {
+    window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
     window.removeEventListener('deviceorientation', handleOrientation, true);
     meterActive = false;
     document.getElementById('meterDisplay').style.display = 'none';
-    document.getElementById('meterBtn').textContent = 'Start meter';
-    statusEl.textContent = 'Meter stopped.';
+    document.getElementById('useReadingBtn').style.display = 'none';
+    document.getElementById('meterBtn').textContent = 'Start live Az/Alt meter';
+    statusEl.textContent = '';
     return;
   }
 
   function startListening() {
-    // Prefer absolute orientation (tied to true/magnetic north) when the
-    // browser exposes it; fall back to plain deviceorientation otherwise.
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     window.addEventListener('deviceorientation', handleOrientation, true);
     meterActive = true;
-    document.getElementById('meterDisplay').style.display = 'block';
+    document.getElementById('meterDisplay').style.display = 'grid';
+    document.getElementById('useReadingBtn').style.display = 'block';
     document.getElementById('meterBtn').textContent = 'Stop meter';
-    statusEl.textContent = 'Reading live \u2014 hold phone flat against gimbal mount, calibrate compass (figure-8) if values look stuck.';
+    statusEl.textContent = '';
   }
 
   if (!window.DeviceOrientationEvent) {
-    statusEl.textContent = 'Device orientation sensors not supported in this browser.';
+    statusEl.textContent = 'Not supported on this device/browser.';
     return;
   }
-
-  // iOS 13+ requires an explicit permission prompt triggered by a user gesture.
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(function(response) {
-      if (response === 'granted') {
-        startListening();
-      } else {
-        statusEl.textContent = 'Permission denied for motion/orientation sensors.';
-      }
-    }).catch(function(err) {
-      statusEl.textContent = 'Permission request failed: ' + err.message;
-    });
+    DeviceOrientationEvent.requestPermission().then(function(r) {
+      if (r === 'granted') startListening();
+      else statusEl.textContent = 'Permission denied.';
+    }).catch(function(e) { statusEl.textContent = e.message; });
   } else {
-    // Android / other browsers: no explicit permission step needed.
     startListening();
   }
 });
 
 document.getElementById('useReadingBtn').addEventListener('click', function() {
+  const statusEl = document.getElementById('meterStatus');
   if (latestHeading === null || latestAlt === null) {
-    document.getElementById('meterStatus').textContent = 'No reading yet \u2014 wait for values to appear.';
+    statusEl.textContent = 'No reading yet.';
     return;
   }
   document.getElementById('startAz').value = Math.round(latestHeading);
   document.getElementById('startAlt').value = Math.round(latestAlt);
-  // also stamp the start time to right now, since that's when this reading was taken
   const now = new Date();
   now.setSeconds(0, 0);
-  const tzOffset = now.getTimezoneOffset() * 60000;
-  const local = new Date(now.getTime() - tzOffset);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   document.getElementById('startTime').value = local.toISOString().slice(0, 16);
-  document.getElementById('meterStatus').textContent = 'Reading applied to starting Az/Alt and start time below.';
+  statusEl.textContent = 'Applied to fields below.';
+  document.getElementById('startAz').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 function toRad(d) { return d * Math.PI / 180; }
 function toDeg(r) { return r * 180 / Math.PI; }
+function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
 
-// Julian Date from a JS Date (UTC)
-function julianDate(date) {
-  return date.getTime() / 86400000 + 2440587.5;
-}
-
-// Greenwich Mean Sidereal Time (degrees), standard formula
 function gmstDeg(jd) {
   const T = (jd - 2451545.0) / 36525.0;
   let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
@@ -337,100 +298,57 @@ function gmstDeg(jd) {
   return gmst;
 }
 
-// Convert RA/Dec (deg) + observer lat/lon (deg) + time (Date, UTC) -> {az, alt} in degrees
 function raDecToAltAz(raDeg, decDeg, latDeg, lonDeg, date) {
   const jd = julianDate(date);
   const gmst = gmstDeg(jd);
-  let lst = gmst + lonDeg; // local sidereal time in degrees
-  lst = ((lst % 360) + 360) % 360;
-
-  let ha = lst - raDeg; // hour angle in degrees
+  let lst = ((gmst + lonDeg) % 360 + 360) % 360;
+  let ha = lst - raDeg;
   ha = ((ha + 180) % 360 + 360) % 360 - 180;
-
-  const haR = toRad(ha);
-  const decR = toRad(decDeg);
-  const latR = toRad(latDeg);
-
+  const haR = toRad(ha), decR = toRad(decDeg), latR = toRad(latDeg);
   const sinAlt = Math.sin(decR) * Math.sin(latR) + Math.cos(decR) * Math.cos(latR) * Math.cos(haR);
   const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
-
   const cosAz = (Math.sin(decR) - Math.sin(alt) * Math.sin(latR)) / (Math.cos(alt) * Math.cos(latR));
-  let az = Math.acos(Math.max(-1, Math.min(1, cosAz)));
-  az = toDeg(az);
-
-  // Determine az quadrant using sign of sin(HA)
-  if (Math.sin(haR) > 0) {
-    az = 360 - az;
-  }
-
+  let az = toDeg(Math.acos(Math.max(-1, Math.min(1, cosAz))));
+  if (Math.sin(haR) > 0) az = 360 - az;
   return { az: az, alt: toDeg(alt) };
 }
 
-// Convert Az/Alt (deg) + observer lat/lon (deg) + time (Date, UTC) -> {ra, dec} in degrees
 function altAzToRaDec(azDeg, altDeg, latDeg, lonDeg, date) {
   const jd = julianDate(date);
   const gmst = gmstDeg(jd);
-  let lst = gmst + lonDeg;
-  lst = ((lst % 360) + 360) % 360;
-
-  const azR = toRad(azDeg);
-  const altR = toRad(altDeg);
-  const latR = toRad(latDeg);
-
+  let lst = ((gmst + lonDeg) % 360 + 360) % 360;
+  const azR = toRad(azDeg), altR = toRad(altDeg), latR = toRad(latDeg);
   const sinDec = Math.sin(altR) * Math.sin(latR) + Math.cos(altR) * Math.cos(latR) * Math.cos(azR);
   const dec = Math.asin(Math.max(-1, Math.min(1, sinDec)));
-
   const cosHa = (Math.sin(altR) - Math.sin(dec) * Math.sin(latR)) / (Math.cos(dec) * Math.cos(latR));
-  let ha = Math.acos(Math.max(-1, Math.min(1, cosHa)));
-  ha = toDeg(ha);
-
-  // Matches forward formula's convention: HA>0 (west of meridian) corresponds
-  // to sin(Az) < 0 there, so acos's positive result is negated when sin(Az) >= 0.
-  if (Math.sin(azR) >= 0) {
-    ha = -ha;
-  }
-
-  let ra = lst - ha;
-  ra = ((ra % 360) + 360) % 360;
-
+  let ha = toDeg(Math.acos(Math.max(-1, Math.min(1, cosHa))));
+  if (Math.sin(azR) >= 0) ha = -ha;
+  let ra = ((lst - ha) % 360 + 360) % 360;
   return { ra: ra, dec: toDeg(dec) };
 }
 
 function fmtTime(date) {
-  return date.toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 document.getElementById('geoBtn').addEventListener('click', function() {
-  const status = document.getElementById('locStatus');
-  if (!navigator.geolocation) {
-    status.textContent = 'Geolocation not supported in this browser.';
-    return;
-  }
-  status.textContent = 'Locating...';
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(function(pos) {
     document.getElementById('lat').value = pos.coords.latitude.toFixed(4);
     document.getElementById('lon').value = pos.coords.longitude.toFixed(4);
-    status.textContent = 'Location set from device GPS.';
-  }, function(err) {
-    status.textContent = 'Could not get location: ' + err.message;
   });
 });
 
-// default start time = now, rounded to nearest minute, in local input format
 (function initTime() {
   const now = new Date();
   now.setSeconds(0, 0);
-  const tzOffset = now.getTimezoneOffset() * 60000;
-  const local = new Date(now.getTime() - tzOffset);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   document.getElementById('startTime').value = local.toISOString().slice(0, 16);
 })();
 
 document.getElementById('calcBtn').addEventListener('click', function() {
   const errorEl = document.getElementById('errorMsg');
   const resultsEl = document.getElementById('results');
-  const noteEl = document.getElementById('note');
   errorEl.style.display = 'none';
   resultsEl.innerHTML = '';
 
@@ -443,28 +361,24 @@ document.getElementById('calcBtn').addEventListener('click', function() {
   const numWp = parseInt(document.getElementById('numWp').value, 10);
 
   if ([lat, lon, startAz, startAlt, duration, numWp].some(isNaN) || !startStr) {
-    errorEl.textContent = 'Please fill in all fields with valid numbers.';
+    errorEl.textContent = 'Fill in all fields with valid numbers.';
     errorEl.style.display = 'block';
     return;
   }
   if (numWp < 2) {
-    errorEl.textContent = 'Number of waypoints must be at least 2.';
+    errorEl.textContent = 'Need at least 2 waypoints.';
     errorEl.style.display = 'block';
     return;
   }
   if (startAlt < -90 || startAlt > 90) {
-    errorEl.textContent = 'Starting altitude must be between -90 and 90 degrees.';
+    errorEl.textContent = 'Altitude must be between -90 and 90.';
     errorEl.style.display = 'block';
     return;
   }
 
-  const startTime = new Date(startStr); // interpreted in browser's local timezone
-
-  // Step 1: figure out what fixed point on the sky your starting az/alt
-  // corresponds to, at the moment you noted it.
+  const startTime = new Date(startStr);
   const targetRaDec = altAzToRaDec(startAz, startAlt, lat, lon, startTime);
 
-  // Step 2: project that fixed point forward to each waypoint time.
   const waypoints = [];
   for (let i = 0; i < numWp; i++) {
     const hoursOffset = (duration * i) / (numWp - 1);
@@ -473,28 +387,26 @@ document.getElementById('calcBtn').addEventListener('click', function() {
     waypoints.push({ time: t, az: pos.az, alt: pos.alt });
   }
 
-  const az0 = waypoints[0].az;
-  const alt0 = waypoints[0].alt;
+  const az0 = waypoints[0].az, alt0 = waypoints[0].alt;
 
   waypoints.forEach(function(wp, i) {
-    let panOffset = ((wp.az - az0 + 180) % 360 + 360) % 360 - 180;
-    let tiltOffset = wp.alt - alt0;
-
+    const panOffset = ((wp.az - az0 + 180) % 360 + 360) % 360 - 180;
+    const tiltOffset = wp.alt - alt0;
     const card = document.createElement('div');
     card.className = 'wp-card';
     card.innerHTML =
       '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + '</div>' +
       '<div class="wp-time">' + fmtTime(wp.time) + '</div>' +
       '<div class="wp-grid">' +
-        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Az</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Alt</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
         '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(2) + '&deg;</div></div>' +
         '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(2) + '&deg;</div></div>' +
       '</div>';
     resultsEl.appendChild(card);
   });
 
-  noteEl.style.display = 'block';
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 </script>
 
