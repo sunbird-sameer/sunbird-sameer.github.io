@@ -97,6 +97,12 @@
     font-weight: 700;
     margin-top: 2px;
   }
+  .live-value-sub {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-top: 2px;
+  }
   .status {
     font-size: 0.72rem;
     color: var(--muted);
@@ -158,8 +164,9 @@
   <button class="secondary" id="meterBtn" type="button">Start live Az/Alt meter</button>
   <div class="live-grid" id="meterDisplay" style="display:none">
     <div class="live-stat">
-      <div class="live-label">Azimuth</div>
+      <div class="live-label">Azimuth (corrected)</div>
       <div class="live-value" id="liveAz">--</div>
+      <div class="live-value-sub" id="liveAzRaw">predicted: --</div>
     </div>
     <div class="live-stat">
       <div class="live-label">Altitude</div>
@@ -214,16 +221,59 @@ let latestHeading = null;
 let latestAlt = null;
 let meterActive = false;
 
-function handleOrientation(event) {
-  let heading = null;
-  if (typeof event.webkitCompassHeading === 'number') {
-    heading = event.webkitCompassHeading;
-  } else if (typeof event.alpha === 'number') {
-    heading = 360 - event.alpha;
+// Proper tilt-compensated compass heading (W3C reference algorithm).
+// Combines alpha/beta/gamma together instead of just using alpha, so the
+// azimuth reading stays correct as you tilt through different altitudes
+// instead of drifting with tilt.
+function computeTiltCompensatedHeading(alpha, beta, gamma) {
+  const d2r = Math.PI / 180;
+  const x = beta ? beta * d2r : 0;
+  const y = gamma ? gamma * d2r : 0;
+  const z = alpha ? alpha * d2r : 0;
+
+  const cX = Math.cos(x), cY = Math.cos(y), cZ = Math.cos(z);
+  const sX = Math.sin(x), sY = Math.sin(y), sZ = Math.sin(z);
+
+  const Vx = -cZ * sY - sZ * sX * cY;
+  const Vy = -sZ * sY + cZ * sX * cY;
+
+  // When the phone is (near) perfectly flat, Vx and Vy both collapse toward
+  // zero and atan(Vx/Vy) becomes NaN -- fall back to the simple flat-phone
+  // heading in that case.
+  if (Math.abs(Vx) < 1e-9 && Math.abs(Vy) < 1e-9) {
+    return ((360 - alpha) % 360 + 360) % 360;
   }
-  if (heading !== null) {
-    latestHeading = ((heading % 360) + 360) % 360;
+
+  let heading = Math.atan(Vx / Vy);
+  if (Vy < 0) {
+    heading += Math.PI;
+  } else if (Vx < 0) {
+    heading += 2 * Math.PI;
+  }
+  return heading * (180 / Math.PI);
+}
+
+function handleOrientation(event) {
+  let corrected = null;
+  let predicted = null;
+
+  if (typeof event.alpha === 'number') {
+    predicted = ((360 - event.alpha) % 360 + 360) % 360;
+  }
+
+  if (typeof event.webkitCompassHeading === 'number') {
+    // iOS already gives a tilt-compensated true heading directly.
+    corrected = event.webkitCompassHeading;
+  } else if (typeof event.alpha === 'number' && typeof event.beta === 'number' && typeof event.gamma === 'number') {
+    corrected = computeTiltCompensatedHeading(event.alpha, event.beta, event.gamma);
+  }
+
+  if (corrected !== null) {
+    latestHeading = ((corrected % 360) + 360) % 360;
     document.getElementById('liveAz').textContent = latestHeading.toFixed(1) + '\u00b0';
+  }
+  if (predicted !== null) {
+    document.getElementById('liveAzRaw').textContent = 'predicted: ' + predicted.toFixed(1) + '\u00b0';
   }
   if (typeof event.beta === 'number') {
     latestAlt = 90 - event.beta;
