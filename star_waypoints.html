@@ -452,8 +452,8 @@ document.getElementById('calcBtn').addEventListener('click', function() {
     errorEl.style.display = 'block';
     return;
   }
-  if (startAlt < 0 || startAlt > 90) {
-    errorEl.textContent = 'Starting altitude must be between 0 and 90 degrees.';
+  if (startAlt < -90 || startAlt > 90) {
+    errorEl.textContent = 'Starting altitude must be between -90 and 90 degrees.';
     errorEl.style.display = 'block';
     return;
   }
@@ -486,10 +486,10 @@ document.getElementById('calcBtn').addEventListener('click', function() {
       '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + '</div>' +
       '<div class="wp-time">' + fmtTime(wp.time) + '</div>' +
       '<div class="wp-grid">' +
-        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + Math.round(wp.az) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + Math.round(wp.alt) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + Math.round(panOffset) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + Math.round(tiltOffset) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(2) + '&deg;</div></div>' +
       '</div>';
     resultsEl.appendChild(card);
   });
