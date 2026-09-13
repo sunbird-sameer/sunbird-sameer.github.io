@@ -156,7 +156,35 @@
 <p class="sub">Point your gimbal wherever you want, note the az/alt from a compass/level app and the time, enter your location — this projects that fixed sky point forward and gives you pan/tilt offsets for each waypoint. No camera, no star lookup needed.</p>
 
 <div class="panel">
-  <label>Observer latitude (deg, + = N)</label>
+  <label style="margin-top:0">Live Az/Alt meter (uses your phone's compass &amp; tilt sensors)</label>
+  <button class="secondary" id="meterBtn" type="button">Start meter</button>
+  <div id="meterStatus" class="loc-status"></div>
+
+  <div id="meterDisplay" style="display:none; margin-top:12px;">
+    <div class="wp-grid">
+      <div class="stat">
+        <div class="stat-label">Azimuth (live)</div>
+        <div class="stat-value" id="liveAz">--</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Altitude / tilt (live)</div>
+        <div class="stat-value" id="liveAlt">--</div>
+      </div>
+    </div>
+    <button id="useReadingBtn" type="button">Use this reading as starting Az/Alt</button>
+    <div class="note" style="margin-top:10px;">
+      This uses your phone's own magnetometer + accelerometer, so it's subject to the same
+      nearby-magnet interference (e.g. clamp magnets) as any compass app. Altitude reads 0&deg;
+      at the horizon assuming the phone's top edge points at the target; if your mount holds
+      the phone in a different orientation, this number won't line up and should be treated
+      as relative, not absolute.
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <label style="margin-top:0">Location &amp; target waypoints</label>
+  <label>Observer latitude / longitude (deg, + = N/E)</label>
   <div class="row">
     <div><input type="number" id="lat" step="0.0001" value="40.7128"></div>
     <div><input type="number" id="lon" step="0.0001" value="-74.0060" placeholder="Longitude (+ = E)"></div>
@@ -167,11 +195,11 @@
   <label>Start time (when you noted the coordinates below)</label>
   <input type="datetime-local" id="startTime">
 
-  <label>Starting azimuth (deg, 0-360, from compass)</label>
-  <input type="number" id="startAz" step="0.01" value="0" placeholder="e.g. 0 = North, 90 = East">
+  <label>Starting azimuth (deg, whole number, from AzAlt app)</label>
+  <input type="number" id="startAz" step="1" value="0" placeholder="e.g. 0 = North, 90 = East">
 
-  <label>Starting altitude (deg, 0-90, from level/inclinometer)</label>
-  <input type="number" id="startAlt" step="0.01" value="45" placeholder="0 = horizon, 90 = straight up">
+  <label>Starting altitude (deg, whole number, from AzAlt app)</label>
+  <input type="number" id="startAlt" step="1" value="45" placeholder="0 = horizon, 90 = straight up">
 
   <label>Duration (hours)</label>
   <input type="number" id="duration" step="0.1" value="2" min="0.1">
@@ -191,6 +219,106 @@
 </div>
 
 <script>
+// ============ Live Az/Alt meter using device sensors ============
+let meterActive = false;
+let latestHeading = null;   // degrees, 0 = North, clockwise
+let latestAlt = null;       // degrees, 0 = horizon, 90 = straight up (phone pointing up)
+
+function handleOrientation(event) {
+  let heading = null;
+
+  // iOS Safari: webkitCompassHeading is already 0=N, clockwise, and doesn't
+  // need the 360-alpha flip that plain 'alpha' does on other platforms.
+  if (typeof event.webkitCompassHeading === 'number') {
+    heading = event.webkitCompassHeading;
+  } else if (event.absolute && typeof event.alpha === 'number') {
+    heading = 360 - event.alpha;
+  } else if (typeof event.alpha === 'number') {
+    heading = 360 - event.alpha; // best effort; may drift without 'absolute'
+  }
+
+  if (heading !== null) {
+    heading = ((heading % 360) + 360) % 360;
+    latestHeading = heading;
+  }
+
+  // beta = front-back tilt (-180 to 180), used here as altitude when phone
+  // is held with its top edge pointing at the target (typical gimbal mount).
+  // 90 = phone vertical (pointing at horizon), we convert so 0 = horizon,
+  // 90 = straight up, matching the rest of this app's altitude convention.
+  if (typeof event.beta === 'number') {
+    latestAlt = 90 - event.beta;
+  }
+
+  if (latestHeading !== null) {
+    document.getElementById('liveAz').textContent = latestHeading.toFixed(1) + '\u00b0';
+  }
+  if (latestAlt !== null) {
+    document.getElementById('liveAlt').textContent = latestAlt.toFixed(1) + '\u00b0';
+  }
+}
+
+document.getElementById('meterBtn').addEventListener('click', function() {
+  const statusEl = document.getElementById('meterStatus');
+
+  if (meterActive) {
+    window.removeEventListener('deviceorientation', handleOrientation, true);
+    meterActive = false;
+    document.getElementById('meterDisplay').style.display = 'none';
+    document.getElementById('meterBtn').textContent = 'Start meter';
+    statusEl.textContent = 'Meter stopped.';
+    return;
+  }
+
+  function startListening() {
+    // Prefer absolute orientation (tied to true/magnetic north) when the
+    // browser exposes it; fall back to plain deviceorientation otherwise.
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    meterActive = true;
+    document.getElementById('meterDisplay').style.display = 'block';
+    document.getElementById('meterBtn').textContent = 'Stop meter';
+    statusEl.textContent = 'Reading live \u2014 hold phone flat against gimbal mount, calibrate compass (figure-8) if values look stuck.';
+  }
+
+  if (!window.DeviceOrientationEvent) {
+    statusEl.textContent = 'Device orientation sensors not supported in this browser.';
+    return;
+  }
+
+  // iOS 13+ requires an explicit permission prompt triggered by a user gesture.
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(function(response) {
+      if (response === 'granted') {
+        startListening();
+      } else {
+        statusEl.textContent = 'Permission denied for motion/orientation sensors.';
+      }
+    }).catch(function(err) {
+      statusEl.textContent = 'Permission request failed: ' + err.message;
+    });
+  } else {
+    // Android / other browsers: no explicit permission step needed.
+    startListening();
+  }
+});
+
+document.getElementById('useReadingBtn').addEventListener('click', function() {
+  if (latestHeading === null || latestAlt === null) {
+    document.getElementById('meterStatus').textContent = 'No reading yet \u2014 wait for values to appear.';
+    return;
+  }
+  document.getElementById('startAz').value = Math.round(latestHeading);
+  document.getElementById('startAlt').value = Math.round(latestAlt);
+  // also stamp the start time to right now, since that's when this reading was taken
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const local = new Date(now.getTime() - tzOffset);
+  document.getElementById('startTime').value = local.toISOString().slice(0, 16);
+  document.getElementById('meterStatus').textContent = 'Reading applied to starting Az/Alt and start time below.';
+});
+
 function toRad(d) { return d * Math.PI / 180; }
 function toDeg(r) { return r * 180 / Math.PI; }
 
@@ -358,10 +486,10 @@ document.getElementById('calcBtn').addEventListener('click', function() {
       '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + '</div>' +
       '<div class="wp-time">' + fmtTime(wp.time) + '</div>' +
       '<div class="wp-grid">' +
-        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Azimuth</div><div class="stat-value">' + Math.round(wp.az) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Altitude</div><div class="stat-value">' + Math.round(wp.alt) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + Math.round(panOffset) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + Math.round(tiltOffset) + '&deg;</div></div>' +
       '</div>';
     resultsEl.appendChild(card);
   });
