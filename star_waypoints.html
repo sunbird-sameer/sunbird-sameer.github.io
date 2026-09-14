@@ -74,41 +74,6 @@
     color: var(--text);
     font-weight: 500;
   }
-  .live-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 10px;
-  }
-  .live-stat {
-    background: #0e1119;
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-  }
-  .live-label {
-    font-size: 0.65rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .live-value {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin-top: 2px;
-  }
-  .live-value-sub {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--muted);
-    margin-top: 2px;
-  }
-  .status {
-    font-size: 0.72rem;
-    color: var(--muted);
-    margin-top: 6px;
-    min-height: 1.2em;
-  }
   .results { margin-top: 12px; }
   .wp-card {
     background: #0e1119;
@@ -161,23 +126,6 @@
 <h1>Star Waypoints</h1>
 
 <div class="panel">
-  <button class="secondary" id="meterBtn" type="button">Start live Az/Alt meter</button>
-  <div class="live-grid" id="meterDisplay" style="display:none">
-    <div class="live-stat">
-      <div class="live-label">Azimuth (corrected)</div>
-      <div class="live-value" id="liveAz">--</div>
-      <div class="live-value-sub" id="liveAzRaw">predicted: --</div>
-    </div>
-    <div class="live-stat">
-      <div class="live-label">Altitude</div>
-      <div class="live-value" id="liveAlt">--</div>
-    </div>
-  </div>
-  <button id="useReadingBtn" type="button" style="display:none">Use as starting Az/Alt</button>
-  <div class="status" id="meterStatus"></div>
-</div>
-
-<div class="panel">
   <label style="margin-top:0">Latitude / Longitude</label>
   <div class="row">
     <div><input type="number" id="lat" step="0.0001" value="40.7128"></div>
@@ -190,11 +138,11 @@
 
   <div class="row">
     <div>
-      <label>Start azimuth (deg)</label>
+      <label>Start azimuth (deg, from AzAlt app)</label>
       <input type="number" id="startAz" step="1" value="0">
     </div>
     <div>
-      <label>Start altitude (deg)</label>
+      <label>Start altitude (deg, from AzAlt app)</label>
       <input type="number" id="startAlt" step="1" value="45">
     </div>
   </div>
@@ -217,186 +165,6 @@
 <div class="results" id="results"></div>
 
 <script>
-let latestHeading = null;
-let latestAlt = null;
-let meterActive = false;
-let refBeta = null; // beta value at meter start, treated as the horizon (altitude 0) reference
-
-// Proper tilt-compensated compass heading (W3C reference algorithm).
-// Combines alpha/beta/gamma together instead of just using alpha, so the
-// azimuth reading stays correct as you tilt through different altitudes
-// instead of drifting with tilt.
-function computeTiltCompensatedHeading(alpha, beta, gamma) {
-  const d2r = Math.PI / 180;
-  const x = beta ? beta * d2r : 0;
-  const y = gamma ? gamma * d2r : 0;
-  const z = alpha ? alpha * d2r : 0;
-
-  const cX = Math.cos(x), cY = Math.cos(y), cZ = Math.cos(z);
-  const sX = Math.sin(x), sY = Math.sin(y), sZ = Math.sin(z);
-
-  const Vx = -cZ * sY - sZ * sX * cY;
-  const Vy = -sZ * sY + cZ * sX * cY;
-
-  // When the phone is (near) perfectly flat, Vx and Vy both collapse toward
-  // zero and atan(Vx/Vy) becomes NaN -- fall back to the simple flat-phone
-  // heading in that case.
-  if (Math.abs(Vx) < 1e-9 && Math.abs(Vy) < 1e-9) {
-    return ((360 - alpha) % 360 + 360) % 360;
-  }
-
-  let heading = Math.atan(Vx / Vy);
-  if (Vy < 0) {
-    heading += Math.PI;
-  } else if (Vx < 0) {
-    heading += 2 * Math.PI;
-  }
-  return heading * (180 / Math.PI);
-}
-
-// Smooths jitter and rejects sudden implausible jumps (usually caused by
-// the alpha/beta/gamma representation briefly flipping branches when the
-// phone rolls sideways). Works on the unit circle so it handles 359->1 deg
-// wraparound correctly, unlike averaging raw degree values.
-let smoothedVec = null;       // {x, y} unit vector representing smoothed heading
-let pendingJump = null;       // {heading, count} - candidate for a real (not glitch) big move
-const SMOOTHING = 0.25;       // 0 = no smoothing/instant, 1 = frozen
-const JUMP_THRESHOLD_DEG = 60;
-const JUMP_CONFIRM_FRAMES = 3;
-
-function smoothHeading(rawHeadingDeg) {
-  const rad = rawHeadingDeg * Math.PI / 180;
-  const vec = { x: Math.cos(rad), y: Math.sin(rad) };
-
-  if (smoothedVec === null) {
-    smoothedVec = vec;
-    return rawHeadingDeg;
-  }
-
-  const currentDeg = Math.atan2(smoothedVec.y, smoothedVec.x) * 180 / Math.PI;
-  let diff = rawHeadingDeg - currentDeg;
-  diff = ((diff + 180) % 360 + 360) % 360 - 180; // shortest angular distance
-
-  if (Math.abs(diff) > JUMP_THRESHOLD_DEG) {
-    // Could be a real fast move, or a branch-flip glitch. Only accept it
-    // once the same large jump shows up on consecutive frames.
-    if (pendingJump && Math.abs(((rawHeadingDeg - pendingJump.heading + 180) % 360 + 360) % 360 - 180) < 15) {
-      pendingJump.count++;
-    } else {
-      pendingJump = { heading: rawHeadingDeg, count: 1 };
-    }
-    if (pendingJump.count < JUMP_CONFIRM_FRAMES) {
-      // Ignore this sample, keep showing the last stable smoothed heading.
-      return ((currentDeg % 360) + 360) % 360;
-    }
-    // Confirmed real move -- snap to it directly instead of slow-blending.
-    smoothedVec = vec;
-    pendingJump = null;
-    return rawHeadingDeg;
-  }
-
-  pendingJump = null;
-  smoothedVec = {
-    x: smoothedVec.x * SMOOTHING + vec.x * (1 - SMOOTHING),
-    y: smoothedVec.y * SMOOTHING + vec.y * (1 - SMOOTHING)
-  };
-  const smoothedDeg = Math.atan2(smoothedVec.y, smoothedVec.x) * 180 / Math.PI;
-  return ((smoothedDeg % 360) + 360) % 360;
-}
-
-function handleOrientation(event) {
-  let corrected = null;
-  let predicted = null;
-
-  if (typeof event.alpha === 'number') {
-    predicted = ((360 - event.alpha) % 360 + 360) % 360;
-  }
-
-  if (typeof event.webkitCompassHeading === 'number') {
-    // iOS already gives a tilt-compensated true heading directly.
-    corrected = event.webkitCompassHeading;
-  } else if (typeof event.alpha === 'number' && typeof event.beta === 'number' && typeof event.gamma === 'number') {
-    corrected = computeTiltCompensatedHeading(event.alpha, event.beta, event.gamma);
-  }
-
-  if (corrected !== null) {
-    const smoothed = smoothHeading(corrected);
-    latestHeading = smoothed;
-    document.getElementById('liveAz').textContent = latestHeading.toFixed(1) + '\u00b0';
-  }
-  if (predicted !== null) {
-    document.getElementById('liveAzRaw').textContent = 'predicted: ' + predicted.toFixed(1) + '\u00b0';
-  }
-  if (typeof event.beta === 'number') {
-    if (refBeta === null) {
-      // First reading after starting the meter: assume the phone was held
-      // vertically pointing at the horizon at this moment, and treat this
-      // beta as the altitude-0 reference. All later readings are relative
-      // to it, so absolute mounting angle/orientation doesn't matter.
-      refBeta = event.beta;
-    }
-    latestAlt = event.beta - refBeta;
-    document.getElementById('liveAlt').textContent = latestAlt.toFixed(1) + '\u00b0';
-  }
-}
-
-document.getElementById('meterBtn').addEventListener('click', function() {
-  const statusEl = document.getElementById('meterStatus');
-
-  if (meterActive) {
-    window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.removeEventListener('deviceorientation', handleOrientation, true);
-    meterActive = false;
-    document.getElementById('meterDisplay').style.display = 'none';
-    document.getElementById('useReadingBtn').style.display = 'none';
-    document.getElementById('meterBtn').textContent = 'Start live Az/Alt meter';
-    statusEl.textContent = '';
-    return;
-  }
-
-  function startListening() {
-    smoothedVec = null;
-    pendingJump = null;
-    refBeta = null;
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    meterActive = true;
-    document.getElementById('meterDisplay').style.display = 'grid';
-    document.getElementById('useReadingBtn').style.display = 'block';
-    document.getElementById('meterBtn').textContent = 'Stop meter';
-    statusEl.textContent = 'Hold phone vertical, pointed at horizon, then keep still for a moment.';
-  }
-
-  if (!window.DeviceOrientationEvent) {
-    statusEl.textContent = 'Not supported on this device/browser.';
-    return;
-  }
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(function(r) {
-      if (r === 'granted') startListening();
-      else statusEl.textContent = 'Permission denied.';
-    }).catch(function(e) { statusEl.textContent = e.message; });
-  } else {
-    startListening();
-  }
-});
-
-document.getElementById('useReadingBtn').addEventListener('click', function() {
-  const statusEl = document.getElementById('meterStatus');
-  if (latestHeading === null || latestAlt === null) {
-    statusEl.textContent = 'No reading yet.';
-    return;
-  }
-  document.getElementById('startAz').value = Math.round(latestHeading);
-  document.getElementById('startAlt').value = Math.round(latestAlt);
-  const now = new Date();
-  now.setSeconds(0, 0);
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  document.getElementById('startTime').value = local.toISOString().slice(0, 16);
-  statusEl.textContent = 'Applied to fields below.';
-  document.getElementById('startAz').scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
-
 function toRad(d) { return d * Math.PI / 180; }
 function toDeg(r) { return r * 180 / Math.PI; }
 function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
@@ -439,6 +207,69 @@ function altAzToRaDec(azDeg, altDeg, latDeg, lonDeg, date) {
   return { ra: ra, dec: toDeg(dec) };
 }
 
+function angularSeparation(az1, alt1, az2, alt2) {
+  const a1 = toRad(alt1), a2 = toRad(alt2);
+  const dAz = toRad(az1 - az2);
+  const cosSep = Math.sin(a1) * Math.sin(a2) + Math.cos(a1) * Math.cos(a2) * Math.cos(dAz);
+  return toDeg(Math.acos(Math.max(-1, Math.min(1, cosSep))));
+}
+
+function generateWaypoints(numWp, startTime, targetRaDec, lat, lon, duration, startAz, startAlt) {
+  const totalSeconds = duration * 3600;
+  const segmentSeconds = totalSeconds / (numWp - 1);
+  const SAMPLE_STEP_SECONDS = 2;
+  const GOOD_ENOUGH_THRESHOLD = 0.1; // combined az+alt distance from integer considered "close enough"
+
+  function integralCloseness(pos) {
+    return Math.abs(pos.az - Math.round(pos.az)) + Math.abs(pos.alt - Math.round(pos.alt));
+  }
+
+  const waypoints = [];
+  for (let i = 0; i < numWp; i++) {
+    if (i === 0) {
+      waypoints.push({ time: startTime, az: startAz, alt: startAlt, score: 0, rounded: false });
+      continue;
+    }
+    const segCenter = startTime.getTime() + i * segmentSeconds * 1000;
+    let windowStart, windowEnd;
+    if (i === numWp - 1) {
+      windowStart = segCenter - (segmentSeconds / 2) * 1000;
+      windowEnd = segCenter;
+    } else {
+      windowStart = segCenter - (segmentSeconds / 2) * 1000;
+      windowEnd = segCenter + (segmentSeconds / 2) * 1000;
+    }
+    let best = null;
+    for (let ts = windowStart; ts <= windowEnd; ts += SAMPLE_STEP_SECONDS * 1000) {
+      const t = new Date(ts);
+      const pos = raDecToAltAz(targetRaDec.ra, targetRaDec.dec, lat, lon, t);
+      const score = integralCloseness(pos);
+      if (best === null || score < best.score) {
+        best = { time: t, az: pos.az, alt: pos.alt, score: score };
+      }
+    }
+    if (best.score > GOOD_ENOUGH_THRESHOLD) {
+      // No moment in this window landed close enough to an integer value --
+      // fall back to the nominal (segment-center) time and round it instead.
+      const nominalT = new Date(segCenter);
+      const nominalPos = raDecToAltAz(targetRaDec.ra, targetRaDec.dec, lat, lon, nominalT);
+      waypoints.push({ time: nominalT, az: Math.round(nominalPos.az), alt: Math.round(nominalPos.alt), score: 0, rounded: true });
+    } else {
+      waypoints.push({ time: best.time, az: best.az, alt: best.alt, score: best.score, rounded: false });
+    }
+  }
+  return waypoints;
+}
+
+function minConsecutiveSeparation(waypoints) {
+  let min = Infinity;
+  for (let i = 1; i < waypoints.length; i++) {
+    const sep = angularSeparation(waypoints[i-1].az, waypoints[i-1].alt, waypoints[i].az, waypoints[i].alt);
+    if (sep < min) min = sep;
+  }
+  return min;
+}
+
 function fmtTime(date) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
@@ -462,6 +293,7 @@ document.getElementById('calcBtn').addEventListener('click', function() {
   const errorEl = document.getElementById('errorMsg');
   const resultsEl = document.getElementById('results');
   errorEl.style.display = 'none';
+  errorEl.style.color = '';
   resultsEl.innerHTML = '';
 
   const lat = parseFloat(document.getElementById('lat').value);
@@ -491,12 +323,24 @@ document.getElementById('calcBtn').addEventListener('click', function() {
   const startTime = new Date(startStr);
   const targetRaDec = altAzToRaDec(startAz, startAlt, lat, lon, startTime);
 
-  const waypoints = [];
-  for (let i = 0; i < numWp; i++) {
-    const hoursOffset = (duration * i) / (numWp - 1);
-    const t = new Date(startTime.getTime() + hoursOffset * 3600000);
-    const pos = raDecToAltAz(targetRaDec.ra, targetRaDec.dec, lat, lon, t);
-    waypoints.push({ time: t, az: pos.az, alt: pos.alt });
+  const MIN_SEPARATION_DEG = 4;
+  let effectiveNumWp = numWp;
+  let waypoints = generateWaypoints(effectiveNumWp, startTime, targetRaDec, lat, lon, duration, startAz, startAlt);
+
+  while (effectiveNumWp > 2 && minConsecutiveSeparation(waypoints) < MIN_SEPARATION_DEG) {
+    effectiveNumWp--;
+    waypoints = generateWaypoints(effectiveNumWp, startTime, targetRaDec, lat, lon, duration, startAz, startAlt);
+  }
+
+  if (effectiveNumWp < numWp) {
+    errorEl.textContent = 'Reduced to ' + effectiveNumWp + ' waypoints so consecutive points stay at least ' + MIN_SEPARATION_DEG + '\u00b0 apart.';
+    errorEl.style.color = 'var(--muted)';
+    errorEl.style.display = 'block';
+  }
+  if (minConsecutiveSeparation(waypoints) < MIN_SEPARATION_DEG) {
+    errorEl.textContent = 'Even at 2 waypoints, the target only moves ' + minConsecutiveSeparation(waypoints).toFixed(2) + '\u00b0 over this duration \u2014 increase the duration for meaningful waypoints.';
+    errorEl.style.color = '#ff6b6b';
+    errorEl.style.display = 'block';
   }
 
   const az0 = waypoints[0].az, alt0 = waypoints[0].alt;
@@ -507,13 +351,13 @@ document.getElementById('calcBtn').addEventListener('click', function() {
     const card = document.createElement('div');
     card.className = 'wp-card';
     card.innerHTML =
-      '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + '</div>' +
+      '<div class="wp-title">Waypoint ' + i + (i === 0 ? ' (start)' : (i === waypoints.length - 1 ? ' (end)' : '')) + (wp.rounded ? ' \u00b7 rounded' : '') + '</div>' +
       '<div class="wp-time">' + fmtTime(wp.time) + '</div>' +
       '<div class="wp-grid">' +
-        '<div class="stat"><div class="stat-label">Az</div><div class="stat-value">' + wp.az.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Alt</div><div class="stat-value">' + wp.alt.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(2) + '&deg;</div></div>' +
-        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(2) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Az</div><div class="stat-value">' + wp.az.toFixed(3) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Alt</div><div class="stat-value">' + wp.alt.toFixed(3) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Pan offset</div><div class="stat-value offset-value">' + (panOffset >= 0 ? '+' : '') + panOffset.toFixed(3) + '&deg;</div></div>' +
+        '<div class="stat"><div class="stat-label">Tilt offset</div><div class="stat-value offset-value">' + (tiltOffset >= 0 ? '+' : '') + tiltOffset.toFixed(3) + '&deg;</div></div>' +
       '</div>';
     resultsEl.appendChild(card);
   });
