@@ -14,9 +14,20 @@
     font-family: Georgia, serif;
     color: #000;
   }
+  /* Rotate the whole page 90deg clockwise to compensate for a
+     portrait-locked screen, so content displays as landscape. */
+  #rotator {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100vh;
+    height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+  }
   #frame {
     width: 100%;
-    height: 100vh;
+    height: 100%;
     display: flex;
   }
   #left {
@@ -77,6 +88,7 @@
 </head>
 <body>
 
+<div id="rotator">
 <div id="frame">
   <div id="left">
     <div id="time"></div>
@@ -86,6 +98,7 @@
   <div id="right">
     <img id="photo" src="">
   </div>
+</div>
 </div>
 
 <script>
@@ -114,8 +127,17 @@
 
   function pad(n) { return n < 10 ? "0" + n : n; }
 
-  function updateClock() {
+  // Get the current time in India Standard Time (UTC+5:30),
+  // independent of the Kindle's own timezone/locale setting.
+  function getISTNow() {
     var now = new Date();
+    var utcMillis = now.getTime() + (now.getTimezoneOffset() * 60000);
+    var istOffsetMillis = 5.5 * 60 * 60000;
+    return new Date(utcMillis + istOffsetMillis);
+  }
+
+  function updateClock() {
+    var now = getISTNow();
     var h = now.getHours();
     var ampm = h >= 12 ? "PM" : "AM";
     var h12 = h % 12; if (h12 === 0) h12 = 12;
@@ -124,7 +146,7 @@
   }
 
   function buildCalendar() {
-    var now = new Date();
+    var now = getISTNow();
     var year = now.getFullYear();
     var month = now.getMonth();
     var today = now.getDate();
