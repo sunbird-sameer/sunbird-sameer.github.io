@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Photo Frame</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: Georgia, serif;
+    color: #000;
+  }
+  #frame {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+  }
+  #left {
+    width: 38%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 30px;
+    border-right: 2px solid #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  #time {
+    font-size: 4.2em;
+    font-weight: bold;
+    line-height: 1;
+    margin-bottom: 0.15em;
+  }
+  #date {
+    font-size: 1.3em;
+    margin-bottom: 1em;
+  }
+  #calendar {
+    border-top: 1px solid #000;
+    padding-top: 1em;
+    font-size: 1em;
+  }
+  #calendar table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  #calendar th, #calendar td {
+    text-align: center;
+    padding: 3px 2px;
+    font-size: 0.9em;
+  }
+  #calendar th {
+    font-weight: normal;
+    border-bottom: 1px solid #000;
+  }
+  #calendar td.today {
+    font-weight: bold;
+    text-decoration: underline;
+  }
+  #right {
+    width: 62%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #photo {
+    max-width: 100%;
+    max-height: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div id="frame">
+  <div id="left">
+    <div id="time"></div>
+    <div id="date"></div>
+    <div id="calendar"></div>
+  </div>
+  <div id="right">
+    <img id="photo" src="">
+  </div>
+</div>
+
+<script>
+  // ---- EDIT THIS LIST ----
+  // Put direct links to your images here (jpg/png work best).
+  // Free hosting options: imgur.com, GitHub raw links, or your own server.
+  var photos = [
+    "https://res.cloudinary.com/sxnafdgf/image/upload/v1790354863/DSCN5378_Edited.jpg",
+    "https://res.cloudinary.com/sxnafdgf/image/upload/v1790354921/PXL_20260321_000149805.NIGHT_4.jpg"
+  ];
+
+  // Seconds between photos
+  var photoInterval = 30;
+
+  var i = 0;
+  function showNext() {
+    document.getElementById("photo").src = photos[i];
+    i = (i + 1) % photos.length;
+  }
+  showNext();
+  setInterval(showNext, photoInterval * 1000);
+
+  // ---- Clock + calendar ----
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  function pad(n) { return n < 10 ? "0" + n : n; }
+
+  function updateClock() {
+    var now = new Date();
+    var h = now.getHours();
+    var ampm = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    document.getElementById("time").textContent = h12 + ":" + pad(now.getMinutes()) + " " + ampm;
+    document.getElementById("date").textContent = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate();
+  }
+
+  function buildCalendar() {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = now.getMonth();
+    var today = now.getDate();
+    var firstDay = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    var html = "<table><tr>";
+    var shortDays = ["S","M","T","W","T","F","S"];
+    for (var d = 0; d < 7; d++) html += "<th>" + shortDays[d] + "</th>";
+    html += "</tr><tr>";
+
+    var col = 0;
+    for (var b = 0; b < firstDay; b++) { html += "<td></td>"; col++; }
+    for (var day = 1; day <= daysInMonth; day++) {
+      if (col === 7) { html += "</tr><tr>"; col = 0; }
+      var cls = (day === today) ? " class=\"today\"" : "";
+      html += "<td" + cls + ">" + day + "</td>";
+      col++;
+    }
+    html += "</tr></table>";
+    document.getElementById("calendar").innerHTML = html;
+  }
+
+  updateClock();
+  buildCalendar();
+  setInterval(updateClock, 30 * 1000);
+  // rebuild calendar once a day is enough, but cheap to just refresh every hour
+  setInterval(buildCalendar, 60 * 60 * 1000);
+</script>
+
+</body>
+</html>
