@@ -27,6 +27,8 @@ video{width:100%;height:100%;object-fit:cover;display:block}
 .res{text-align:center}.big{font-size:56px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
 .mut{color:var(--mut);font-size:13px}.err{color:#c0392b;font-size:14px}
 #hist div{display:flex;justify-content:space-between;border-top:1px solid var(--bd);padding:4px 0;font-variant-numeric:tabular-nums}
+.qr{background:#fff;padding:8px;border-radius:10px;margin:8px auto;max-width:380px}.qr:empty{display:none}.qr svg{width:100%;height:auto;display:block}
+details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 .hide{display:none}
 </style></head><body><main>
 <h1>⏱ Fall Timer</h1>
@@ -44,21 +46,30 @@ video{width:100%;height:100%;object-fit:cover;display:block}
     <b>Pair the phones (no server needed)</b>
     <div class="seg"><button id="bHost">1. I create the code</button><button id="bJoin">2. I paste the code</button></div>
     <div id="hostBox" class="hide">
-      <label>Step A — send this code to the other phone (WhatsApp, Messages…)</label>
-      <textarea id="offerOut" readonly></textarea>
-      <div class="seg"><button data-copy="offerOut">Copy</button><button data-share="offerOut">Share</button></div>
-      <label>Step C — paste the reply code from the other phone</label>
-      <textarea id="ansIn"></textarea>
-      <button class="pri" id="applyAns" style="width:100%">Connect</button>
+      <label>Step A — let the other phone scan this QR (screen brightness up, hold steady)</label>
+      <div class="qr" id="offerQR"></div>
+      <label>Step C — then scan the reply QR that appears on the other phone</label>
+      <button class="pri" id="scanAns" style="width:100%">Scan reply QR</button>
+      <details><summary>Camera scan not working? Use text codes</summary>
+        <textarea id="offerOut" readonly></textarea>
+        <div class="seg"><button data-copy="offerOut">Copy</button><button data-share="offerOut">Share</button></div>
+        <label>Paste the reply code</label><textarea id="ansIn"></textarea>
+        <button id="applyAns" style="width:100%">Connect</button>
+      </details>
     </div>
     <div id="joinBox" class="hide">
-      <label>Step B — paste the code from the first phone</label>
-      <textarea id="offIn"></textarea>
-      <button class="pri" id="mkAns" style="width:100%">Create reply code</button>
-      <label>Send this reply code back to the first phone</label>
-      <textarea id="ansOut" readonly></textarea>
-      <div class="seg"><button data-copy="ansOut">Copy</button><button data-share="ansOut">Share</button></div>
+      <label>Step B — scan the QR shown on the first phone</label>
+      <button class="pri" id="scanOff" style="width:100%">Scan QR</button>
+      <label>Then let the first phone scan this reply QR</label>
+      <div class="qr" id="ansQR"></div>
+      <details><summary>Camera scan not working? Use text codes</summary>
+        <textarea id="offIn"></textarea>
+        <button id="mkAns" style="width:100%;margin-top:6px">Create reply code</button>
+        <textarea id="ansOut" readonly></textarea>
+        <div class="seg"><button data-copy="ansOut">Copy</button><button data-share="ansOut">Share</button></div>
+      </details>
     </div>
+    <div class="mut" id="scanSt"></div><button id="cancelScan" class="hide">Cancel scan</button>
     <div class="err" id="perr"></div>
   </div>
 
@@ -79,6 +90,8 @@ video{width:100%;height:100%;object-fit:cover;display:block}
   <div class="card"><b>Runs</b><div id="hist" class="mut">None yet</div></div>
 </section>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const cid=Math.random().toString(36).slice(2,10);
@@ -108,7 +121,7 @@ function wire(ch){
 }
 const gathered=()=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,4000)});
 const b64=u=>{let s='';u.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
-async function enc(o){const s=JSON.stringify({type:o.type,sdp:o.sdp});
+async function enc(o){const s=JSON.stringify({type:o.type,sdp:slim(o.sdp)});
   try{const cs=new Blob([s]).stream().pipeThrough(new CompressionStream('deflate'));return'Z'+b64(new Uint8Array(await new Response(cs).arrayBuffer()))}
   catch(e){return'R'+btoa(s)}}
 async function dec(t){t=t.replace(/\s/g,'');
@@ -116,16 +129,42 @@ async function dec(t){t=t.replace(/\s/g,'');
     return JSON.parse(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'))).text())}
   return JSON.parse(atob(t.slice(1)))}
 const show=id=>{$('hostBox').classList.toggle('hide',id!=='hostBox');$('joinBox').classList.toggle('hide',id!=='joinBox')};
+const slim=t=>t.split('\r\n').filter(l=>{if(!l.startsWith('a=candidate'))return true;const p=l.split(' ');return p[2].toLowerCase()==='udp'&&!p[4].includes(':')}).join('\r\n');
+function drawQR(id,text){try{const q=qrcode(0,'L');q.addData(text,'Byte');q.make();$(id).innerHTML=q.createSvgTag({scalable:true,margin:1})}catch(e){$(id).innerHTML='';$('perr').textContent='Code too large for a QR — use the text codes.'}}
+let scanning=false;
+function scanQR(){return new Promise((res,rej)=>{
+  scanning=true;$('scanSt').textContent='Scanning… point the camera at the other phone\'s QR.';$('cancelScan').classList.remove('hide');
+  const c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true});
+  const bd=window.BarcodeDetector?new BarcodeDetector({formats:['qr_code']}):null;
+  const end=()=>{scanning=false;$('scanSt').textContent='';$('cancelScan').classList.add('hide')};
+  const tick=async()=>{
+    if(!scanning){end();return rej(new Error('cancelled'))}
+    const v=$('v');
+    if(v.readyState>=2&&v.videoWidth){
+      try{let t=null;
+        if(bd){const r=await bd.detect(v);if(r.length)t=r[0].rawValue}
+        else{c.width=v.videoWidth;c.height=v.videoHeight;x.drawImage(v,0,0);const q=jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height);if(q)t=q.data}
+        if(t){end();return res(t)}
+      }catch(e){}
+    }
+    setTimeout(tick,120)};
+  tick()})}
+$('cancelScan').onclick=()=>{scanning=false};
+const perr=e=>{if(e.message!=='cancelled')$('perr').textContent='Error: '+e.message};
 $('bHost').onclick=async()=>{
-  $('perr').textContent='';show('hostBox');$('offerOut').value='Creating code…';
-  try{mkpc();wire(pc.createDataChannel('fall'));await pc.setLocalDescription(await pc.createOffer());await gathered();$('offerOut').value=await enc(pc.localDescription)}
-  catch(e){$('perr').textContent='Error: '+e.message}};
+  $('perr').textContent='';show('hostBox');$('offerQR').innerHTML='';$('offerOut').value='Creating code…';
+  try{mkpc();wire(pc.createDataChannel('fall'));await pc.setLocalDescription(await pc.createOffer());await gathered();const o=await enc(pc.localDescription);$('offerOut').value=o;drawQR('offerQR',o)}
+  catch(e){perr(e)}};
 $('bJoin').onclick=()=>{$('perr').textContent='';show('joinBox')};
-$('applyAns').onclick=async()=>{try{await pc.setRemoteDescription(await dec($('ansIn').value))}catch(e){$('perr').textContent='Bad code: '+e.message}};
-$('mkAns').onclick=async()=>{
-  $('perr').textContent='';$('ansOut').value='Creating reply…';
-  try{mkpc();await pc.setRemoteDescription(await dec($('offIn').value));await pc.setLocalDescription(await pc.createAnswer());await gathered();$('ansOut').value=await enc(pc.localDescription)}
-  catch(e){$('ansOut').value='';$('perr').textContent='Bad code: '+e.message}};
+const takeAnswer=async t=>{await pc.setRemoteDescription(await dec(t))};
+$('scanAns').onclick=async()=>{$('perr').textContent='';try{await takeAnswer(await scanQR())}catch(e){perr(e)}};
+$('applyAns').onclick=async()=>{try{await takeAnswer($('ansIn').value)}catch(e){perr(e)}};
+async function makeAnswer(code){
+  $('perr').textContent='';$('ansQR').innerHTML='';$('ansOut').value='Creating reply…';
+  try{mkpc();await pc.setRemoteDescription(await dec(code));await pc.setLocalDescription(await pc.createAnswer());await gathered();const a=await enc(pc.localDescription);$('ansOut').value=a;drawQR('ansQR',a)}
+  catch(e){$('ansOut').value='';perr(e)}}
+$('scanOff').onclick=async()=>{try{await makeAnswer(await scanQR())}catch(e){perr(e)}};
+$('mkAns').onclick=()=>makeAnswer($('offIn').value);
 document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{const t=$(b.dataset.copy);t.select();try{await navigator.clipboard.writeText(t.value);b.textContent='Copied ✓'}catch(e){document.execCommand('copy')}});
 document.querySelectorAll('[data-share]').forEach(b=>{if(!navigator.share){b.style.display='none';return}b.onclick=()=>navigator.share({text:$(b.dataset.share).value}).catch(()=>{})});
 
@@ -134,7 +173,7 @@ $('cam').onclick=async()=>{
   $('err').textContent='';
   if(!window.isSecureContext||!navigator.mediaDevices){$('err').textContent='Camera needs HTTPS. Open the https:// GitHub Pages address.';return}
   try{
-    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480},frameRate:{ideal:60}},audio:false});
+    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}},audio:false});
     $('v').srcObject=s;
   }catch(e){$('err').textContent='Camera unavailable: '+e.name+' — '+e.message;return}
   $('setup').classList.add('hide');$('main').classList.remove('hide');
