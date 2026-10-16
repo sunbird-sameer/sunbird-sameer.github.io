@@ -76,6 +76,9 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
   <div class="chips"><span class="chip" id="cPeer">Not paired</span><span class="chip" id="cSync">Clock: not synced</span><span class="chip" id="cState">Idle</span><span class="chip" id="cFps">Camera: – fps</span></div>
   <div class="card">
     <div class="vid"><video id="v" playsinline muted autoplay></video><div class="band"></div><div class="badge" id="roleB"></div></div>
+    <label>Brightness <b id="bv">50</b> <span class="mut" id="bm"></span></label>
+    <input type="range" id="bright" min="0" max="100" value="50" style="width:100%">
+    <label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" id="lockExp"> Lock exposure (steadier detection, needs good light)</label>
     <label>Smallest object width (% of frame) — lower = more sensitive</label>
     <input type="range" id="sens" min="1" max="30" value="3" style="width:100%">
     <div class="mut">Live detected width: <span id="mv">0</span>% (trigger at <span id="sv">3</span>%). While idle this should stay near 0; raise the slider if not.</div>
@@ -94,7 +97,7 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const VERSION='1.1.0 (high-fps)';$('ver').textContent='v'+VERSION;
+const VERSION='1.2.0 (brightness)';$('ver').textContent='v'+VERSION;
 const cid=Math.random().toString(36).slice(2,10);
 const now=()=>performance.timeOrigin+performance.now();
 let role='top',peerSeen=false,best=null,state='idle',hits={},calibUntil=0,bg=null,vr=null,frameDt=33,lastF=0,runs=[];
@@ -175,7 +178,7 @@ $('cam').onclick=async()=>{
   if(!window.isSecureContext||!navigator.mediaDevices){$('err').textContent='Camera needs HTTPS. Open the https:// GitHub Pages address.';return}
   try{
     const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:120}},audio:false});
-    $('v').srcObject=s;
+    $('v').srcObject=s;setTimeout(applyBrightness,300);
   }catch(e){$('err').textContent='Camera unavailable: '+e.name+' — '+e.message;return}
   $('setup').classList.add('hide');$('main').classList.remove('hide');
   $('roleB').textContent=role==='top'?'TOP sensor':'BOTTOM sensor';
@@ -190,7 +193,7 @@ async function camMode(fast){
     if(fast){const c=tr.getCapabilities?tr.getCapabilities():{},mx=(c.frameRate&&c.frameRate.max)||60;
       await tr.applyConstraints({width:{ideal:640},height:{ideal:480},frameRate:{ideal:mx}})}
   }catch(e){}
-  lastF=0;
+  lastF=0;applyBrightness();
 }
 setInterval(()=>{const tr=$('v').srcObject&&$('v').srcObject.getVideoTracks()[0],s=tr?tr.getSettings():{};
   $('cFps').textContent='Camera: '+(s.frameRate?Math.round(s.frameRate)+' fps set, ':'')+Math.round(1000/frameDt)+' measured'},700);
@@ -207,11 +210,27 @@ $('arm').onclick=()=>{send('arm');arm()};
 function arm(){lockCam();hits={};bg=null;state='calib';calibUntil=performance.now()+2000;$('dt').textContent='—';$('unc').textContent='';$('msg').textContent='Calibrating… keep the phone and scene still.';render()}
 
 /* ---------- detection ---------- */
-async function lockCam(){try{const tr=$('v').srcObject.getVideoTracks()[0],c=tr.getCapabilities?tr.getCapabilities():{},a={};
-  if((c.exposureMode||[]).includes('manual'))a.exposureMode='manual';
-  if((c.whiteBalanceMode||[]).includes('manual'))a.whiteBalanceMode='manual';
-  if((c.focusMode||[]).includes('manual'))a.focusMode='manual';
-  if(Object.keys(a).length)await tr.applyConstraints({advanced:[a]})}catch(e){}}
+async function lockCam(){
+  try{const tr=$('v').srcObject.getVideoTracks()[0],c=tr.getCapabilities?tr.getCapabilities():{};
+    if((c.whiteBalanceMode||[]).includes('manual'))await tr.applyConstraints({advanced:[{whiteBalanceMode:'manual'}]})}catch(e){}
+  applyBrightness();
+}
+async function applyBrightness(){
+  const v=+$('bright').value,lock=$('lockExp').checked,tr=$('v').srcObject&&$('v').srcObject.getVideoTracks()[0];
+  $('bv').textContent=v;let hw='';
+  try{if(tr){const c=tr.getCapabilities?tr.getCapabilities():{},a={};
+    if(!lock&&c.exposureCompensation){const e=c.exposureCompensation;a.exposureMode='continuous';a.exposureCompensation=e.min+(e.max-e.min)*v/100;hw='exposure compensation'}
+    else if(lock&&c.exposureTime&&(c.exposureMode||[]).includes('manual')){const t=c.exposureTime;a.exposureMode='manual';a.exposureTime=t.min*Math.pow(t.max/t.min,v/100);
+      if(c.iso)a.iso=c.iso.min+(c.iso.max-c.iso.min)*.6;hw='exposure time (locked)'}
+    if(hw)await tr.applyConstraints({advanced:[a]})}}catch(e){hw=''}
+  const g=Math.pow(3,(v-50)/50),f=hw?'none':'brightness('+g.toFixed(2)+')';
+  $('v').style.filter=f;cx.filter=f;
+  $('bm').textContent=hw?'(camera: '+hw+')':'(software gain)';
+}
+$('bright').oninput=applyBrightness;
+$('lockExp').onchange=async()=>{
+  if(!$('lockExp').checked){try{await $('v').srcObject.getVideoTracks()[0].applyConstraints({advanced:[{exposureMode:'continuous'}]})}catch(e){}}
+  applyBrightness()};
 const W=96,H=12,cv=document.createElement('canvas');cv.width=W;cv.height=H;
 const cx=cv.getContext('2d',{willReadFrequently:true});
 function loop(){process();const v=$('v');v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(loop)}
