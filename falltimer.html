@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fall Timer</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1b1b1a;--mut:#6b6a66;--ac:#d9531e;--ok:#1d8a4e;--bd:#ddd9d0;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--card:#222220;--tx:#f0efea;--mut:#a09e96;--ac:#ff7a45;--ok:#4cc57f;--bd:#3a3935;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161615;--card:#222220;--tx:#f0efea;--mut:#a09e96;--ac:#ff7a45;--ok:#4cc57f;--bd:#3a3935;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 4px}
+input[type=text]{width:100%;font-size:28px;letter-spacing:.3em;text-align:center;padding:8px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+.seg{display:flex;gap:8px}.seg button{flex:1}
+button{font:inherit;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer}
+button.on,button.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+button:disabled{opacity:.45}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{font-size:13px;padding:3px 10px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
+.chip.ok{color:var(--ok);border-color:var(--ok)}
+.vid{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
+video{width:100%;height:100%;object-fit:cover;display:block}
+.band{position:absolute;left:0;right:0;top:45%;height:10%;border-top:2px solid var(--ac);border-bottom:2px solid var(--ac);background:rgba(217,83,30,.12)}
+.badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;padding:2px 8px;border-radius:6px}
+.meter{height:8px;border-radius:4px;background:var(--bd);overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;width:0;background:var(--ac)}
+.res{text-align:center}.big{font-size:56px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.mut{color:var(--mut);font-size:13px}.err{color:#c0392b;font-size:14px}
+ol{padding-left:20px;margin:6px 0}li{margin:2px 0}
+#hist div{display:flex;justify-content:space-between;border-top:1px solid var(--bd);padding:4px 0;font-variant-numeric:tabular-nums}
+.hide{display:none}
+</style></head><body><main>
+<h1>⏱ Fall Timer</h1>
+
+<section class="card" id="setup">
+  <label>Pairing code (same on both phones)</label>
+  <input type="text" id="code" maxlength="4" inputmode="numeric">
+  <label>This phone is the…</label>
+  <div class="seg"><button id="rTop" class="on">Top sensor</button><button id="rBot">Bottom sensor</button></div>
+  <p class="mut">Phone at the release point = <b>Top</b>. Phone at the landing point = <b>Bottom</b>.</p>
+  <button class="pri" id="join" style="width:100%">Pair &amp; start camera</button>
+  <div class="err" id="err"></div>
+  <ol class="mut">
+    <li>Open this page on both phones (signed in to Claude).</li>
+    <li>Use the same code, opposite roles.</li>
+    <li>Point each camera <i>across</i> the fall path so the object crosses the orange band. Any background works, but <b>prop the phone so it cannot move</b>.</li>
+  </ol>
+</section>
+
+<section id="main" class="hide">
+  <div class="chips"><span class="chip" id="cPeer">Waiting for other phone…</span><span class="chip" id="cSync">Clock: not synced</span><span class="chip" id="cState">Idle</span></div>
+  <div class="card">
+    <div class="vid"><video id="v" playsinline muted autoplay></video><div class="band"></div><div class="badge" id="roleB"></div></div>
+    <label>Smallest object width (% of frame) — lower = more sensitive</label>
+    <input type="range" id="sens" min="1" max="30" value="3" style="width:100%">
+    <div class="mut">Live detected width: <span id="mv">0</span>% (trigger at <span id="sv">3</span>%). While idle this should stay near 0 even with a busy background; raise the slider if not.</div>
+    <div class="meter"><i id="mbar"></i></div>
+  </div>
+  <div class="seg" style="margin-bottom:12px"><button class="pri" id="arm">Arm both phones</button><button id="sync">Re-sync clocks</button></div>
+  <div class="card res">
+    <div class="mut" id="msg">Press “Arm both phones”, keep the phone and scene still for 2 s, then drop the object.</div>
+    <div class="big" id="dt">—</div>
+    <div class="mut" id="unc"></div>
+  </div>
+  <div class="card"><b>Runs</b><div id="hist" class="mut">None yet</div></div>
+</section>
+
+<script>
+const $=id=>document.getElementById(id);
+const cid=Math.random().toString(36).slice(2,10);
+const now=()=>performance.timeOrigin+performance.now();
+let room=null,role='top',peerSeen=false,best=null,state='idle',hits={},calibUntil=0,bg=null,frameDt=33,lastF=0,runs=[],shown=false;
+$('code').value=String(Math.floor(1000+Math.random()*9000));
+$('rTop').onclick=()=>setRole('top');$('rBot').onclick=()=>setRole('bottom');
+function setRole(r){role=r;$('rTop').classList.toggle('on',r==='top');$('rBot').classList.toggle('on',r==='bottom')}
+$('sens').oninput=()=>$('sv').textContent=$('sens').value;
+const send=(t,d)=>{try{room&&room.emit(t,Object.assign({cid},d||{}))}catch(e){}};
+
+$('join').onclick=async()=>{
+  $('err').textContent='';
+  const code=$('code').value.trim();
+  if(!/^\d{4}$/.test(code)){$('err').textContent='Enter a 4-digit code.';return}
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480},frameRate:{ideal:60}},audio:false});
+  }catch(e){$('err').textContent='Camera unavailable: '+e.message+'. If this page is embedded, open it in its own browser tab.';return}
+  const rm=await claude.use('room');
+  if(!rm){$('err').textContent='Pairing needs the room feature: open the link while signed in to Claude on both phones.';stream.getTracks().forEach(t=>t.stop());return}
+  room=await rm.join('fall-'+code);
+  $('v').srcObject=stream;
+  $('setup').classList.add('hide');$('main').classList.remove('hide');
+  $('roleB').textContent=role==='top'?'TOP sensor':'BOTTOM sensor';
+  room.on('hello',m=>{const d=m.data||{};if(d.cid===cid)return;if(!peerSeen){peerSeen=true;send('hello',{role});startSync()}render()});
+  room.on('ping',m=>{const d=m.data||{};if(d.cid===cid)return;send('pong',{to:d.cid,t0:d.t0,t1:now()})});
+  room.on('pong',m=>{const d=m.data||{};if(d.to!==cid)return;const t3=now(),rtt=t3-d.t0,off=d.t1-(d.t0+t3)/2;if(!best||rtt<best.rtt)best={off,rtt};render()});
+  room.on('arm',m=>{if((m.data||{}).cid!==cid)arm()});
+  room.on('reset',m=>{if((m.data||{}).cid!==cid)hits={}});
+  room.on('hit',m=>{const d=m.data||{};if(d.cid===cid)return;hits[d.role]={t:d.t,mine:false};result();render()});
+  send('hello',{role});setInterval(()=>send('hello',{role}),2500);
+  loop();render();
+};
+function startSync(){best=null;let n=0;const iv=setInterval(()=>{send('ping',{t0:now()});if(++n>=30)clearInterval(iv)},120)}
+$('sync').onclick=startSync;
+$('arm').onclick=()=>{send('arm');arm()};
+function arm(){lockCam();hits={};bg=null;state='calib';calibUntil=performance.now()+2000;$('dt').textContent='—';$('unc').textContent='';$('msg').textContent='Calibrating… keep the scene still.';render()}
+
+async function lockCam(){try{const tr=$('v').srcObject.getVideoTracks()[0],c=tr.getCapabilities?tr.getCapabilities():{},a={};
+  if((c.exposureMode||[]).includes('manual'))a.exposureMode='manual';
+  if((c.whiteBalanceMode||[]).includes('manual'))a.whiteBalanceMode='manual';
+  if((c.focusMode||[]).includes('manual'))a.focusMode='manual';
+  if(Object.keys(a).length)await tr.applyConstraints({advanced:[a]})}catch(e){}}
+let vr=null;
+const W=96,H=12,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+const cx=cv.getContext('2d',{willReadFrequently:true});
+function loop(){process();const v=$('v');v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(loop)}
+function process(){
+  const v=$('v');if(v.readyState<2||!v.videoWidth)return;
+  const p=performance.now();if(lastF)frameDt=frameDt*.9+(p-lastF)*.1;lastF=p;
+  const vw=v.videoWidth,vh=v.videoHeight;
+  cx.drawImage(v,0,vh*.45,vw,vh*.10,0,0,W,H);
+  const d=cx.getImageData(0,0,W,H).data,n=W*H,g=new Float32Array(n);
+  for(let i=0;i<n;i++)g[i]=.3*d[i*4]+.59*d[i*4+1]+.11*d[i*4+2];
+  if(!bg){bg=g.slice();vr=new Float32Array(n).fill(30);return}
+  let m=0,mb=0;for(let i=0;i<n;i++){m+=g[i];mb+=bg[i]}
+  const sh=(m-mb)/n,col=new Uint16Array(W),chg=new Uint8Array(n);let tot=0;
+  for(let i=0;i<n;i++){const e=g[i]-sh-bg[i];if(Math.abs(e)>Math.max(20,4*Math.sqrt(vr[i]))){chg[i]=1;col[i%W]++;tot++}}
+  if(tot/n>.85){bg=g.slice();return}
+  let run=0,mx=0;for(let x=0;x<W;x++){if(col[x]>=H*.4){if(++run>mx)mx=run}else run=0}
+  const frac=mx/W*100;
+  $('mv').textContent=frac.toFixed(1);$('mbar').style.width=Math.min(100,frac*4)+'%';
+  if(state==='armed'&&frac>=+$('sens').value){
+    const t=now();state='hit';hits[role]={t,mine:true};send('hit',{role,t});
+    $('msg').textContent='Triggered here. Waiting for the other phone…';result();render();return;
+  }
+  if(state==='calib'&&p>calibUntil){state='armed';$('msg').textContent='ARMED — drop the object now.';render()}
+  const learn=state!=='armed',k=learn?.2:.02;
+  for(let i=0;i<n;i++){const e=g[i]-sh-bg[i];if(learn)vr[i]+=(e*e-vr[i])*.1;if(learn||!chg[i])bg[i]+=e*k}
+}
+function result(){
+  if(!(hits.top&&hits.bottom))return;
+  if(!best){$('msg').textContent='Both triggered, but clocks are not synced. Press “Re-sync clocks”.';return}
+  const conv=h=>h.mine?h.t:h.t-best.off;
+  const dt=(conv(hits.bottom)-conv(hits.top))/1000,u=(best.rtt/2+frameDt)/1000;
+  $('dt').textContent=dt.toFixed(3)+' s';
+  $('unc').textContent='±'+(u*1000).toFixed(0)+' ms (clock sync + camera frame time)';
+  $('msg').textContent=dt<0?'Bottom fired before Top — check roles, sensitivity or aim and retry.':'Time of fall between the two sensors:';
+  if(dt>=0){runs.unshift(dt);$('hist').innerHTML=runs.slice(0,10).map((r,i)=>'<div><span>#'+(runs.length-i)+'</span><span>'+r.toFixed(3)+' s</span></div>').join('')}
+  state='done';hits={};render();
+}
+function render(){
+  $('cPeer').textContent=peerSeen?'Other phone connected':'Waiting for other phone…';$('cPeer').classList.toggle('ok',peerSeen);
+  $('cSync').textContent=best?'Clock synced ±'+(best.rtt/2).toFixed(0)+' ms':'Clock: not synced';$('cSync').classList.toggle('ok',!!best);
+  $('cState').textContent={idle:'Idle',calib:'Calibrating',armed:'ARMED',hit:'Triggered',done:'Done'}[state];$('cState').classList.toggle('ok',state==='armed');
+}
+</script></main></body></html>
