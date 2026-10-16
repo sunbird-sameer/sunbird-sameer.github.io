@@ -29,6 +29,8 @@ video{width:100%;height:100%;object-fit:cover;display:block}
 #hist div{display:flex;justify-content:space-between;border-top:1px solid var(--bd);padding:4px 0;font-variant-numeric:tabular-nums}
 .qr{background:#fff;padding:8px;border-radius:10px;margin:8px auto;max-width:380px}.qr:empty{display:none}.qr svg{width:100%;height:auto;display:block}
 details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
+.band.vside{border-top:0;border-bottom:0;border-left:2px solid var(--ac);border-right:2px solid var(--ac)}
+@media (orientation:landscape){main{max-width:900px}.vid{width:min(100%,calc(62vh*4/3));margin:0 auto}}
 .hide{display:none}
 </style></head><body><main>
 <h1>⏱ Fall Timer <span class="mut" id="ver"></span></h1>
@@ -75,10 +77,13 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 
   <div class="chips"><span class="chip" id="cPeer">Not paired</span><span class="chip" id="cSync">Clock: not synced</span><span class="chip" id="cState">Idle</span><span class="chip" id="cFps">Camera: – fps</span></div>
   <div class="card">
-    <div class="vid"><video id="v" playsinline muted autoplay></video><div class="band"></div><div class="badge" id="roleB"></div></div>
+    <div class="vid"><video id="v" playsinline muted autoplay></video><div class="band" id="band"></div><div class="badge" id="roleB"></div></div>
     <label>Brightness <b id="bv">50</b> <span class="mut" id="bm"></span></label>
     <input type="range" id="bright" min="0" max="100" value="50" style="width:100%">
     <label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" id="lockExp"> Lock exposure (steadier detection, needs good light)</label>
+    <label>Detection band thickness <b id="bhv">14</b>% of the view — thicker catches fast objects</label>
+    <input type="range" id="bh" min="4" max="30" value="14" style="width:100%">
+    <label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" id="sideways"> Image looks sideways (objects move left↔right on screen)</label>
     <label>Smallest object width (% of frame) — lower = more sensitive</label>
     <input type="range" id="sens" min="1" max="30" value="3" style="width:100%">
     <div class="mut">Live detected width: <span id="mv">0</span>% (trigger at <span id="sv">3</span>%). While idle this should stay near 0; raise the slider if not.</div>
@@ -97,7 +102,7 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const VERSION='1.2.0 (brightness)';$('ver').textContent='v'+VERSION;
+const VERSION='1.3.0 (landscape)';$('ver').textContent='v'+VERSION;
 const cid=Math.random().toString(36).slice(2,10);
 const now=()=>performance.timeOrigin+performance.now();
 let role='top',peerSeen=false,best=null,state='idle',hits={},calibUntil=0,bg=null,vr=null,frameDt=33,lastF=0,runs=[];
@@ -178,7 +183,7 @@ $('cam').onclick=async()=>{
   if(!window.isSecureContext||!navigator.mediaDevices){$('err').textContent='Camera needs HTTPS. Open the https:// GitHub Pages address.';return}
   try{
     const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:120}},audio:false});
-    $('v').srcObject=s;setTimeout(applyBrightness,300);
+    $('v').srcObject=s;setTimeout(applyBrightness,300);layoutBand();
   }catch(e){$('err').textContent='Camera unavailable: '+e.name+' — '+e.message;return}
   $('setup').classList.add('hide');$('main').classList.remove('hide');
   $('roleB').textContent=role==='top'?'TOP sensor':'BOTTOM sensor';
@@ -231,6 +236,11 @@ $('bright').oninput=applyBrightness;
 $('lockExp').onchange=async()=>{
   if(!$('lockExp').checked){try{await $('v').srcObject.getVideoTracks()[0].applyConstraints({advanced:[{exposureMode:'continuous'}]})}catch(e){}}
   applyBrightness()};
+function layoutBand(){const t=+$('bh').value,sw=$('sideways').checked,b=$('band').style;$('bhv').textContent=t;$('band').classList.toggle('vside',sw);
+  if(sw){b.top='0';b.bottom='0';b.height='auto';b.left=(50-t/2)+'%';b.width=t+'%';b.right='auto'}
+  else{b.left='0';b.right='0';b.width='auto';b.top=(50-t/2)+'%';b.height=t+'%';b.bottom='auto'}}
+$('bh').oninput=()=>{layoutBand();bg=null};
+$('sideways').onchange=()=>{layoutBand();bg=null};
 const W=96,H=12,cv=document.createElement('canvas');cv.width=W;cv.height=H;
 const cx=cv.getContext('2d',{willReadFrequently:true});
 function loop(){process();const v=$('v');v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(loop)}
@@ -238,7 +248,9 @@ function process(){
   const v=$('v');if(v.readyState<2||!v.videoWidth)return;
   const p=performance.now();if(lastF)frameDt=frameDt*.9+(p-lastF)*.1;lastF=p;
   const vw=v.videoWidth,vh=v.videoHeight;
-  cx.drawImage(v,0,vh*.45,vw,vh*.10,0,0,W,H);
+  const t=+$('bh').value/100;
+  if($('sideways').checked){cx.setTransform(0,1,1,0,0,0);cx.drawImage(v,vw*(.5-t/2),0,vw*t,vh,0,0,H,W);cx.setTransform(1,0,0,1,0,0)}
+  else cx.drawImage(v,0,vh*(.5-t/2),vw,vh*t,0,0,W,H);
   const d=cx.getImageData(0,0,W,H).data,n=W*H,g=new Float32Array(n);
   for(let i=0;i<n;i++)g[i]=.3*d[i*4]+.59*d[i*4+1]+.11*d[i*4+2];
   if(!bg){bg=g.slice();vr=new Float32Array(n).fill(30);return}
