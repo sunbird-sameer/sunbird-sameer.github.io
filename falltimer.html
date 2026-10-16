@@ -31,7 +31,7 @@ video{width:100%;height:100%;object-fit:cover;display:block}
 details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 .hide{display:none}
 </style></head><body><main>
-<h1>⏱ Fall Timer</h1>
+<h1>⏱ Fall Timer <span class="mut" id="ver"></span></h1>
 
 <section class="card" id="setup">
   <label>This phone is the…</label>
@@ -73,7 +73,7 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
     <div class="err" id="perr"></div>
   </div>
 
-  <div class="chips"><span class="chip" id="cPeer">Not paired</span><span class="chip" id="cSync">Clock: not synced</span><span class="chip" id="cState">Idle</span></div>
+  <div class="chips"><span class="chip" id="cPeer">Not paired</span><span class="chip" id="cSync">Clock: not synced</span><span class="chip" id="cState">Idle</span><span class="chip" id="cFps">Camera: – fps</span></div>
   <div class="card">
     <div class="vid"><video id="v" playsinline muted autoplay></video><div class="band"></div><div class="badge" id="roleB"></div></div>
     <label>Smallest object width (% of frame) — lower = more sensitive</label>
@@ -94,6 +94,7 @@ details{margin-top:10px}summary{font-size:13px;color:var(--mut);cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+const VERSION='1.1.0 (high-fps)';$('ver').textContent='v'+VERSION;
 const cid=Math.random().toString(36).slice(2,10);
 const now=()=>performance.timeOrigin+performance.now();
 let role='top',peerSeen=false,best=null,state='idle',hits={},calibUntil=0,bg=null,vr=null,frameDt=33,lastF=0,runs=[];
@@ -115,8 +116,8 @@ function mkpc(){
 }
 function wire(ch){
   dc=ch;
-  ch.onopen=()=>{$('pair').classList.add('hide');send('hello',{role})};
-  ch.onclose=()=>{peerSeen=false;$('pair').classList.remove('hide');render()};
+  ch.onopen=()=>{$('pair').classList.add('hide');send('hello',{role});camMode(true)};
+  ch.onclose=()=>{peerSeen=false;$('pair').classList.remove('hide');camMode(false);render()};
   ch.onmessage=e=>{const[t,d]=JSON.parse(e.data);(handlers[t]||[]).forEach(f=>f({data:d}))};
 }
 const gathered=()=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,4000)});
@@ -173,13 +174,26 @@ $('cam').onclick=async()=>{
   $('err').textContent='';
   if(!window.isSecureContext||!navigator.mediaDevices){$('err').textContent='Camera needs HTTPS. Open the https:// GitHub Pages address.';return}
   try{
-    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}},audio:false});
+    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:120}},audio:false});
     $('v').srcObject=s;
   }catch(e){$('err').textContent='Camera unavailable: '+e.name+' — '+e.message;return}
   $('setup').classList.add('hide');$('main').classList.remove('hide');
   $('roleB').textContent=role==='top'?'TOP sensor':'BOTTOM sensor';
   loop();render();
 };
+
+/* ---------- camera mode: high-res for QR scanning, max fps for timing ---------- */
+async function camMode(fast){
+  const tr=$('v').srcObject&&$('v').srcObject.getVideoTracks()[0];if(!tr)return;
+  try{
+    await tr.applyConstraints(fast?{width:{ideal:640},height:{ideal:480}}:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}});
+    if(fast){const c=tr.getCapabilities?tr.getCapabilities():{},mx=(c.frameRate&&c.frameRate.max)||60;
+      await tr.applyConstraints({width:{ideal:640},height:{ideal:480},frameRate:{ideal:mx}})}
+  }catch(e){}
+  lastF=0;
+}
+setInterval(()=>{const tr=$('v').srcObject&&$('v').srcObject.getVideoTracks()[0],s=tr?tr.getSettings():{};
+  $('cFps').textContent='Camera: '+(s.frameRate?Math.round(s.frameRate)+' fps set, ':'')+Math.round(1000/frameDt)+' measured'},700);
 
 /* ---------- clock sync + messages ---------- */
 room.on('hello',m=>{const d=m.data||{};if(d.cid===cid)return;if(!peerSeen){peerSeen=true;startSync()}render()});
